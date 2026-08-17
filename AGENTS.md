@@ -24,7 +24,14 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 ```bash
 python3 fetch_kotlin_version.py   # → 2.4.10
 python3 fetch_gradle_version.py   # → 8.14.2
+python3 create_project.py myapp   # → projects/myapp/ (or prompt: `python3 create_project.py`)
 ```
+
+## Directories
+
+- `templates/` — source template files copied into new projects.
+- `projects/` — generated project directories (created at runtime).
+
 ## Git
 
 - Branch: `N-description`
@@ -36,12 +43,7 @@ python3 fetch_gradle_version.py   # → 8.14.2
 |---|------|------|------------|
 | 1 | Fetch latest Kotlin version | `fetch_kotlin_version.py` | `get_latest_kotlin_version(timeout) -> str` |
 | 3 | Fetch latest Gradle version | `fetch_gradle_version.py` | `get_latest_gradle_version(timeout) -> str` |
-
-## Planned
-
-- Fetch latest compatible Java SDK version (nice-to-have)
-- Scaffold project: `gradle init` + template files (`build.gradle.kts`, `.gitignore`)
-- Accept project name + package as CLI input
+| 4 | Scaffold project dir from template | `create_project.py` | `create_project(name) -> Path` |
 
 ## Rules
 
