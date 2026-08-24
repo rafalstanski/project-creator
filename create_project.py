@@ -37,12 +37,21 @@ def create_project(name: str, templates_dir: Path = TEMPLATES_DIR, projects_dir:
         raise FileExistsError(f"Project directory already exists: {target}")
 
     target.mkdir(parents=True)
+    # If a copy fails, the target directory is intentionally left on disk
+    # so the user can inspect and remove it manually.
     for template_file in TEMPLATE_FILES:
         shutil.copyfile(templates_dir / template_file, target / template_file)
     return target
 
 
 def main() -> int:
+    """Parse arguments, create the project, and print its path.
+
+    Prompts for the project name if it is not provided via the CLI.
+
+    Returns:
+        0 on success, 1 on any error.
+    """
     parser = argparse.ArgumentParser(description="Create a new Kotlin project from templates.")
     parser.add_argument("name", nargs="?", help="Project name (directory name).")
     args = parser.parse_args()
@@ -54,6 +63,8 @@ def main() -> int:
         except EOFError:
             print("Error: no project name provided.", file=sys.stderr)
             return 1
+    else:
+        name = name.strip()
 
     try:
         project_dir = create_project(name)
@@ -63,11 +74,14 @@ def main() -> int:
     except FileExistsError:
         print(f"Error: project '{name}' already exists.", file=sys.stderr)
         return 1
-    except (FileNotFoundError, shutil.Error) as exc:
+    except OSError as exc:
         print(f"Error: could not copy template files: {exc}", file=sys.stderr)
         return 1
 
-    print(project_dir)
+    try:
+        print(project_dir.relative_to(Path.cwd()))
+    except ValueError:
+        print(project_dir)
     return 0
 
 
