@@ -34,8 +34,10 @@ python3 create_project.py myapp   # → projects/myapp/ (or prompt: `python3 cre
 
 ## Git
 
+- `N` is the task number from the GitHub project (matches the `#` column in Implemented).
 - Branch: `N-description`
 - Commit: `#N: Short description`
+- The `N` in the commit must match the `N` in the branch (e.g. branch `4-scaffold` → commit `#4: Scaffold project dir`).
 
 ## Implemented
 
