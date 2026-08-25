@@ -15,7 +15,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("org.example.AppKt")
+    mainClass.set("com.example.AppKt")
 }
 
 kotlin {
