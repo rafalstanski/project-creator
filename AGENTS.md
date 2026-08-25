@@ -43,7 +43,7 @@ python3 create_project.py myapp   # → projects/myapp/ (or prompt: `python3 cre
 |---|------|------|------------|
 | 1 | Fetch latest Kotlin version | `fetch_kotlin_version.py` | `get_latest_kotlin_version(timeout) -> str` |
 | 3 | Fetch latest Gradle version | `fetch_gradle_version.py` | `get_latest_gradle_version(timeout) -> str` |
-| 4 | Scaffold project dir from template | `create_project.py` | `create_project(name) -> Path` |
+| 4 | Scaffold project dir from template | `create_project.py` | `create_project(name) -> Path` — copies `build.gradle.kts`, creates `src/main/kotlin` + `src/main/resources`, and `App.kt` into `com/example/` (package hardcoded in `PACKAGE_NAME`) |
 
 ## Rules
 

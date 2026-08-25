@@ -8,10 +8,19 @@ from pathlib import Path
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 PROJECTS_DIR = Path(__file__).resolve().parent / "projects"
 TEMPLATE_FILES = ("build.gradle.kts",)
+PACKAGE_NAME = "com.example"
+PACKAGE_DIRS = PACKAGE_NAME.split(".")
+KOTLIN_SRC_DIR = Path("src/main/kotlin")
+RESOURCES_DIR = Path("src/main/resources")
 
 
 def create_project(name: str, templates_dir: Path = TEMPLATES_DIR, projects_dir: Path = PROJECTS_DIR) -> Path:
-    """Create ``<projects_dir>/<name>`` and copy each template file into it.
+    """Create ``<projects_dir>/<name>`` and populate it from the template files.
+
+    Copies ``build.gradle.kts`` into the project root, creates the standard
+    source layout (``src/main/kotlin``, ``src/main/resources``) with the
+    package directory for ``PACKAGE_NAME``, and copies ``App.kt`` into the
+    package directory.
 
     Args:
         name: project directory name.
@@ -41,6 +50,10 @@ def create_project(name: str, templates_dir: Path = TEMPLATES_DIR, projects_dir:
     # so the user can inspect and remove it manually.
     for template_file in TEMPLATE_FILES:
         shutil.copyfile(templates_dir / template_file, target / template_file)
+    package_dir = target / KOTLIN_SRC_DIR.joinpath(*PACKAGE_DIRS)
+    package_dir.mkdir(parents=True)
+    (target / RESOURCES_DIR).mkdir(parents=True)
+    shutil.copyfile(templates_dir / "App.kt", package_dir / "App.kt")
     return target
 
 
