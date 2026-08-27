@@ -12,6 +12,8 @@ TEMPLATE_FILES = ("build.gradle.kts",)
 DEFAULT_PACKAGE_NAME = "com.example"
 PACKAGE_NAME_PLACEHOLDER = "{{PACKAGE_NAME}}"
 PACKAGE_RE = re.compile(r"^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)*$")
+# Deliberately simplified: also accepts Kotlin hard keywords (``class``) and
+# all-underscore (``_``) segments, which the Kotlin compiler would reject.
 KOTLIN_SRC_DIR = Path("src/main/kotlin")
 RESOURCES_DIR = Path("src/main/resources")
 
