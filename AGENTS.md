@@ -24,7 +24,7 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 ```bash
 python3 fetch_kotlin_version.py   # → 2.4.10
 python3 fetch_gradle_version.py   # → 8.14.2
-python3 create_project.py myapp                # → projects/myapp/ (optional `package` arg, default `com.example`)
+python3 create_project.py myapp   # → projects/myapp/ (optional `package` arg, default `com.example`)
 ```
 
 ## Directories
