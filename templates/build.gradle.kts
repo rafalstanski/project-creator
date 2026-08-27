@@ -3,7 +3,7 @@ plugins {
     application
 }
 
-group = "com.example"
+group = "{{PACKAGE_NAME}}"
 version = "1.0-SNAPSHOT"
 
 repositories {
@@ -15,7 +15,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("com.example.AppKt")
+    mainClass.set("{{PACKAGE_NAME}}.AppKt")
 }
 
 kotlin {
