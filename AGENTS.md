@@ -9,6 +9,7 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 
 - Python 3.14 (pyenv, pinned via `.python-version`) — **stdlib recommended**; external dependencies only if needed
 - `uv` manages the environment (`.venv/`); run scripts with `uv run`
+- A local `gradle` CLI (>= 8.2) must be on `PATH` for `create_project.py`; the minimum is required by the `gradle init --no-incubating` command
 - No build system, no test framework, no CI
 
 ## Conventions
@@ -26,7 +27,7 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 
 ```bash
 uv run fetch_kotlin_version.py   # → 2.4.10
-uv run fetch_gradle_version.py   # → 8.14.2
+uv run fetch_gradle_version.py   # → 9.7.1
 uv run create_project.py myapp   # → projects/myapp/ (optional `package` arg, default `com.example`)
 uv run pyright --warnings        # → 0 errors, 0 warnings
 ```
@@ -45,9 +46,44 @@ uv run pyright --warnings        # → 0 errors, 0 warnings
 
 ## Modules
 
-- `fetch_kotlin_version.py` — fetches the newest stable Kotlin version from the JetBrains/kotlin GitHub releases. `get_latest_kotlin_version(timeout: int = DEFAULT_TIMEOUT) -> str` returns e.g. `2.4.10`; `main()` prints it to stdout.
-- `fetch_gradle_version.py` — same for Gradle (gradle/gradle releases). `get_latest_gradle_version(timeout: int = DEFAULT_TIMEOUT) -> str` returns e.g. `8.14.2`; `main()` prints it.
-- `create_project.py` — `create_project(name, package_name, templates_dir, projects_dir) -> Path` copies `build.gradle.kts` into `<projects_dir>/<name>/`, creates `src/main/kotlin` + `src/main/resources`, copies `App.kt` into the `<package_name>` dirs, and replaces `{{PACKAGE_NAME}}` in both files (default package `com.example`). `main()` prompts for `name`/`package` when omitted from the CLI and prints the created path.
+- `fetch_kotlin_version.py` — Kotlin version lookup
+- `fetch_gradle_version.py` — Gradle version lookup
+- `create_project.py` — Gradle + Kotlin scaffold generator
+
+### `fetch_kotlin_version.py`
+
+Fetches the newest stable Kotlin version from the JetBrains/kotlin GitHub releases.
+
+- `get_latest_kotlin_version(timeout: int = DEFAULT_TIMEOUT) -> str` → e.g. `2.4.10`
+- `main()` prints it to stdout
+
+### `fetch_gradle_version.py`
+
+Same, for Gradle (gradle/gradle releases).
+
+- `get_latest_gradle_version(timeout: int = DEFAULT_TIMEOUT) -> str` → e.g. `8.14.2`
+- `main()` prints it
+
+### `create_project.py`
+
+`create_project(name, package_name, gradle_version, templates_dir, projects_dir) -> Path`
+
+- creates `<projects_dir>/<name>/`, requires `gradle` on `PATH`
+- runs `gradle init --type basic --dsl kotlin --project-name <name> --no-incubating`
+- runs `gradle wrapper --gradle-version <gradle_version>`
+- strips generated comments from `settings.gradle.kts` + `gradle.properties`
+- copies `build.gradle.kts` into project root
+- creates `src/main/kotlin` + `src/main/resources`
+- copies `App.kt` into the `<package_name>` dirs, replaces `{{PACKAGE_NAME}}` (default `com.example`)
+
+`main()` flow:
+
+- `_parse_args` (CLI)
+- resolves name/package from CLI or stdin via `_resolve_project_name` / `_resolve_package_name` (prompting via `_prompt_value`, default `com.example`)
+- `_fetch_gradle_version` (errors → `None`)
+- packs into the `ProjectArgs` dataclass via `_build_project_args`
+- creates via `_create_project_or_none(project_args)` (errors → `None`)
+- prints the created path via `_print_created_path`
 
 ## Rules
 
