@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import urllib.error
+from dataclasses import dataclass
 from pathlib import Path
 
 from fetch_gradle_version import get_latest_gradle_version
@@ -21,6 +22,15 @@ PACKAGE_RE = re.compile(r"^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)*$")
 # all-underscore (``_``) segments, which the Kotlin compiler would reject.
 KOTLIN_SRC_DIR = Path("src/main/kotlin")
 RESOURCES_DIR = Path("src/main/resources")
+
+
+@dataclass
+class ProjectArgs:
+    """Resolved inputs describing the project to create."""
+
+    name: str
+    package_name: str
+    gradle_version: str
 
 
 def _validate_project_inputs(name: str, package_name: str) -> None:
@@ -134,82 +144,125 @@ def create_project(
     return target
 
 
-def main() -> int:
-    """Parse arguments, fetch the Gradle version, and print the created path.
-
-    Prompts for the project name or the package name if they are not provided
-    via the CLI; the package defaults to ``DEFAULT_PACKAGE_NAME`` when the
-    prompt answer is empty. The newest stable Gradle version is fetched from
-    the GitHub releases and passed to ``create_project`` for the wrapper task.
-
-    Returns:
-        0 on success, 1 on any error.
-    """
-    parser = argparse.ArgumentParser(
-        description="Create a new Kotlin project from templates."
-    )
-    parser.add_argument("name", nargs="?", help="Project name (directory name).")
-    parser.add_argument("package", nargs="?", help="Dotted Kotlin package name.")
-    args = parser.parse_args()
-
-    name = args.name
-    if name is None:
-        try:
-            name = input("Project name: ").strip()
-        except EOFError:
-            print("Error: no project name provided.", file=sys.stderr)
-            return 1
-    else:
-        name = name.strip()
-
-    package = args.package
-    if package is None:
-        try:
-            package = input(f"Package name [{DEFAULT_PACKAGE_NAME}]: ").strip()
-        except EOFError:
-            print("Error: no package name provided.", file=sys.stderr)
-            return 1
-    else:
-        package = package.strip()
-    if not package:
-        package = DEFAULT_PACKAGE_NAME
-
+def _prompt_value(prompt: str, label: str) -> str | None:
+    """Read a value from stdin, printing an error and returning ``None`` on EOF."""
     try:
-        gradle_version = get_latest_gradle_version()
+        return input(prompt).strip()
+    except EOFError:
+        print(f"Error: no {label} provided.", file=sys.stderr)
+        return None
+
+
+def _fetch_gradle_version() -> str | None:
+    """Fetch the newest Gradle version, printing an error and returning ``None``."""
+    try:
+        return get_latest_gradle_version()
     except urllib.error.HTTPError as exc:
         print(f"Error: HTTP {exc.code} while fetching Gradle version.", file=sys.stderr)
-        return 1
     except urllib.error.URLError as exc:
         print(f"Error: network/timeout: {exc.reason}", file=sys.stderr)
-        return 1
     except (ValueError, json.JSONDecodeError) as exc:
         print(f"Error: could not determine Gradle version: {exc}", file=sys.stderr)
-        return 1
+    return None
 
+
+def _create_project_or_none(project_args: ProjectArgs) -> Path | None:
+    """Call ``create_project``, printing an error and returning ``None`` on failure."""
     try:
-        project_dir = create_project(name, package, gradle_version)
+        return create_project(
+            project_args.name, project_args.package_name, project_args.gradle_version
+        )
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
-        return 1
     except FileExistsError:
-        print(f"Error: project '{name}' already exists.", file=sys.stderr)
-        return 1
+        print(f"Error: project '{project_args.name}' already exists.", file=sys.stderr)
     except FileNotFoundError as exc:
         print(f"Error: could not run gradle: {exc}", file=sys.stderr)
-        return 1
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or exc.stdout or "").strip()
         print(f"Error: gradle command failed: {detail}", file=sys.stderr)
-        return 1
     except OSError as exc:
         print(f"Error: could not copy template files: {exc}", file=sys.stderr)
-        return 1
+    return None
 
+
+def _print_created_path(project_dir: Path) -> int:
+    """Print ``project_dir`` relative to cwd (falling back to absolute)."""
     try:
         print(project_dir.relative_to(Path.cwd()))
     except ValueError:
         print(project_dir)
     return 0
+
+
+def _parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Create a new Kotlin project from templates."
+    )
+    parser.add_argument("name", nargs="?", help="Project name (directory name).")
+    parser.add_argument("package", nargs="?", help="Dotted Kotlin package name.")
+    return parser.parse_args()
+
+
+def _resolve_project_name(cli_args: argparse.Namespace) -> str | None:
+    """Return the project name from the CLI, or read it from stdin."""
+    if cli_args.name is None:
+        return _prompt_value("Project name: ", "project name")
+    return cli_args.name.strip()
+
+
+def _resolve_package_name(cli_args: argparse.Namespace) -> str | None:
+    """Return the package name, prompting or defaulting to ``DEFAULT_PACKAGE_NAME``."""
+    if cli_args.package is None:
+        package = _prompt_value(
+            f"Package name [{DEFAULT_PACKAGE_NAME}]: ", "package name"
+        )
+    else:
+        package = cli_args.package.strip()
+    if package is None:
+        return None
+    if not package:
+        return DEFAULT_PACKAGE_NAME
+    return package
+
+
+def _build_project_args(
+    name: str, package_name: str, gradle_version: str
+) -> ProjectArgs:
+    """Bundle the resolved inputs into a ``ProjectArgs``."""
+    return ProjectArgs(name, package_name, gradle_version)
+
+
+def main() -> int:
+    """Parse arguments, resolve inputs, fetch the Gradle version, and print the path.
+
+    Prompts for the project name or the package name if they are not provided
+    via the CLI; the package defaults to ``DEFAULT_PACKAGE_NAME`` when the
+    prompt answer is empty.
+
+    Returns:
+        0 on success, 1 on any error.
+    """
+    cli_args = _parse_args()
+
+    name = _resolve_project_name(cli_args)
+    if name is None:
+        return 1
+    package_name = _resolve_package_name(cli_args)
+    if package_name is None:
+        return 1
+    gradle_version = _fetch_gradle_version()
+    if gradle_version is None:
+        return 1
+
+    project_dir = _create_project_or_none(
+        _build_project_args(name, package_name, gradle_version)
+    )
+    if project_dir is None:
+        return 1
+
+    return _print_created_path(project_dir)
 
 
 if __name__ == "__main__":
