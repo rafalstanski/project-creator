@@ -127,13 +127,16 @@ def create_project(
 
     Raises:
         ValueError: if ``name`` or ``package_name`` is invalid.
-        FileExistsError: if the project directory already exists or the
-            ``gradle`` executable cannot be found.
-        FileNotFoundError: if a template file is missing from ``templates_dir``.
+        FileExistsError: if the project directory already exists.
+        FileNotFoundError: if the ``gradle`` executable is not on ``PATH``,
+            if a template file is missing from ``templates_dir``, or if a
+            generated file is missing.
         subprocess.CalledProcessError: if a ``gradle`` command fails.
         shutil.Error: if a template file cannot be copied.
     """
     _validate_project_inputs(name, package_name)
+    if shutil.which("gradle") is None:
+        raise FileNotFoundError("gradle executable not found on PATH.")
     target = projects_dir / name
     if target.exists():
         raise FileExistsError(f"Project directory already exists: {target}")
@@ -177,7 +180,7 @@ def _create_project_or_none(project_args: ProjectArgs) -> Path | None:
     except FileExistsError:
         print(f"Error: project '{project_args.name}' already exists.", file=sys.stderr)
     except FileNotFoundError as exc:
-        print(f"Error: could not run gradle: {exc}", file=sys.stderr)
+        print(f"Error: not found: {exc}", file=sys.stderr)
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or exc.stdout or "").strip()
         print(f"Error: gradle command failed: {detail}", file=sys.stderr)

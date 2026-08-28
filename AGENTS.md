@@ -9,7 +9,7 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 
 - Python 3.14 (pyenv, pinned via `.python-version`) — **stdlib recommended**; external dependencies only if needed
 - `uv` manages the environment (`.venv/`); run scripts with `uv run`
-- A local `gradle` CLI must be on `PATH` for `create_project.py`
+- A local `gradle` CLI (>= 8.2) must be on `PATH` for `create_project.py`; the minimum is required by the `gradle init --no-incubating` command
 - No build system, no test framework, no CI
 
 ## Conventions
