@@ -23,44 +23,8 @@ KOTLIN_SRC_DIR = Path("src/main/kotlin")
 RESOURCES_DIR = Path("src/main/resources")
 
 
-def create_project(
-    name: str,
-    package_name: str,
-    gradle_version: str,
-    templates_dir: Path = TEMPLATES_DIR,
-    projects_dir: Path = PROJECTS_DIR,
-) -> Path:
-    """Create ``<projects_dir>/<name>`` and populate it from the template files.
-
-    Creates the project directory, runs ``gradle init --type basic --dsl kotlin``
-    and ``gradle wrapper --gradle-version <gradle_version>`` in it, strips the
-    generated header comments from ``settings.gradle.kts`` and
-    ``gradle.properties``, then copies ``build.gradle.kts`` into the project
-    root, creates the standard source layout (``src/main/kotlin``,
-    ``src/main/resources``) with the package directory for ``package_name``,
-    copies ``App.kt`` into the package directory, and replaces the
-    ``PACKAGE_NAME_PLACEHOLDER`` token with ``package_name`` in both
-    generated files.
-
-    Args:
-        name: project directory name.
-        package_name: dotted Kotlin package name used in sources, Gradle
-            scripts, and directory layout.
-        gradle_version: Gradle version passed to the ``gradle wrapper`` task.
-        templates_dir: directory containing the template files.
-        projects_dir: directory under which the project is created.
-
-    Returns:
-        The path of the created project directory.
-
-    Raises:
-        ValueError: if ``name`` or ``package_name`` is invalid.
-        FileExistsError: if the project directory already exists or the
-            ``gradle`` executable cannot be found.
-        FileNotFoundError: if a template file is missing from ``templates_dir``.
-        subprocess.CalledProcessError: if a ``gradle`` command fails.
-        shutil.Error: if a template file cannot be copied.
-    """
+def _validate_project_inputs(name: str, package_name: str) -> None:
+    """Validate project name and package name format."""
     if not name:
         raise ValueError("Project name must not be empty.")
     if name in {".", ".."} or "/" in name or "\\" in name:
@@ -68,12 +32,9 @@ def create_project(
     if not PACKAGE_RE.fullmatch(package_name):
         raise ValueError(f"Invalid package name: {package_name!r}")
 
-    target = projects_dir / name
-    if target.exists():
-        raise FileExistsError(f"Project directory already exists: {target}")
 
-    package_dirs = package_name.split(".")
-    target.mkdir(parents=True)
+def _run_gradle_init(target: Path, name: str, gradle_version: str) -> None:
+    """Run ``gradle init`` and ``gradle wrapper`` in ``target``."""
     subprocess.run(
         [
             "gradle",
@@ -98,6 +59,10 @@ def create_project(
         capture_output=True,
         text=True,
     )
+
+
+def _strip_generated_comments(target: Path) -> None:
+    """Remove generated header comments from Gradle build files."""
     settings_file = target / "settings.gradle.kts"
     settings_file.write_text(
         re.sub(r"/\*.*?\*/\s*", "", settings_file.read_text(), count=1, flags=re.DOTALL)
@@ -110,10 +75,17 @@ def create_project(
             if not line.lstrip().startswith("#")
         ).lstrip("\n")
     )
+
+
+def _populate_project_files(
+    target: Path, templates_dir: Path, package_name: str
+) -> None:
+    """Copy template files, create source layout dirs, and substitute placeholders."""
     # If a copy fails, the target directory is intentionally left on disk
     # so the user can inspect and remove it manually.
     for template_file in TEMPLATE_FILES:
         shutil.copyfile(templates_dir / template_file, target / template_file)
+    package_dirs = package_name.split(".")
     package_dir = target / KOTLIN_SRC_DIR.joinpath(*package_dirs)
     package_dir.mkdir(parents=True)
     (target / RESOURCES_DIR).mkdir(parents=True)
@@ -121,6 +93,44 @@ def create_project(
     for file in (target / "build.gradle.kts", package_dir / "App.kt"):
         content = file.read_text()
         file.write_text(content.replace(PACKAGE_NAME_PLACEHOLDER, package_name))
+
+
+def create_project(
+    name: str,
+    package_name: str,
+    gradle_version: str,
+    templates_dir: Path = TEMPLATES_DIR,
+    projects_dir: Path = PROJECTS_DIR,
+) -> Path:
+    """Create ``<projects_dir>/<name>`` and populate it from the template files.
+
+    Args:
+        name: project directory name.
+        package_name: dotted Kotlin package name used in sources, Gradle
+            scripts, and directory layout.
+        gradle_version: Gradle version passed to the ``gradle wrapper`` task.
+        templates_dir: directory containing the template files.
+        projects_dir: directory under which the project is created.
+
+    Returns:
+        The path of the created project directory.
+
+    Raises:
+        ValueError: if ``name`` or ``package_name`` is invalid.
+        FileExistsError: if the project directory already exists or the
+            ``gradle`` executable cannot be found.
+        FileNotFoundError: if a template file is missing from ``templates_dir``.
+        subprocess.CalledProcessError: if a ``gradle`` command fails.
+        shutil.Error: if a template file cannot be copied.
+    """
+    _validate_project_inputs(name, package_name)
+    target = projects_dir / name
+    if target.exists():
+        raise FileExistsError(f"Project directory already exists: {target}")
+    target.mkdir(parents=True)
+    _run_gradle_init(target, name, gradle_version)
+    _strip_generated_comments(target)
+    _populate_project_files(target, templates_dir, package_name)
     return target
 
 
