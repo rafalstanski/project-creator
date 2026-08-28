@@ -7,7 +7,7 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 
 ## Stack
 
-- Python 3.14 (pyenv, pinned via `.python-version`) — **stdlib only**, no third-party dependencies
+- Python 3.14 (pyenv, pinned via `.python-version`) — **stdlib recommended**; external dependencies only if needed
 - `uv` manages the environment (`.venv/`); run scripts with `uv run`
 - No build system, no test framework, no CI
 
@@ -53,5 +53,5 @@ uv run pyright --warnings        # → 0 errors, 0 warnings
 
 1. Update `AGENTS.md` after finishing each task (add to Modules, update any section if changes relate to it)
 2. Match existing code conventions (docstrings, types, error-handling pattern)
-3. Stdlib only — no new dependencies without explicit approval
+3. Stdlib recommended — external dependencies only if needed
 4. Follow `#N:` commit and `N-` branch naming
