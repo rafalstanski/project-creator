@@ -7,7 +7,8 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 
 ## Stack
 
-- Python 3.14 (pyenv) — **stdlib only**, no third-party dependencies
+- Python 3.14 (pyenv, pinned via `.python-version`) — **stdlib only**, no third-party dependencies
+- `uv` manages the environment (`.venv/`); run scripts with `uv run`
 - No build system, no test framework, no CI
 
 ## Conventions
@@ -22,9 +23,9 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 ## Run
 
 ```bash
-python3 fetch_kotlin_version.py   # → 2.4.10
-python3 fetch_gradle_version.py   # → 8.14.2
-python3 create_project.py myapp   # → projects/myapp/ (optional `package` arg, default `com.example`)
+uv run fetch_kotlin_version.py   # → 2.4.10
+uv run fetch_gradle_version.py   # → 8.14.2
+uv run create_project.py myapp   # → projects/myapp/ (optional `package` arg, default `com.example`)
 ```
 
 ## Directories
