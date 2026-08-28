@@ -20,6 +20,7 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 - Explicit exception handling (`HTTPError`, `URLError`, `ValueError`, `JSONDecodeError`)
 - Module-level constants: `RELEASES_URL`, `DEFAULT_TIMEOUT`, `USER_AGENT`
 - ruff is the project linter/formatter — always run `uv run ruff check --fix` and `uv run ruff format` after changes; implementation must pass both cleanly before finishing a task
+- pyright is the type checker (strict mode, config in `pyrightconfig.json`) — always run `uv run pyright --warnings` after changes; must pass cleanly before finishing a task
 
 ## Run
 
@@ -27,6 +28,7 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 uv run fetch_kotlin_version.py   # → 2.4.10
 uv run fetch_gradle_version.py   # → 8.14.2
 uv run create_project.py myapp   # → projects/myapp/ (optional `package` arg, default `com.example`)
+uv run pyright --warnings        # → 0 errors, 0 warnings
 ```
 
 ## Directories
