@@ -18,7 +18,12 @@ KOTLIN_SRC_DIR = Path("src/main/kotlin")
 RESOURCES_DIR = Path("src/main/resources")
 
 
-def create_project(name: str, package_name: str, templates_dir: Path = TEMPLATES_DIR, projects_dir: Path = PROJECTS_DIR) -> Path:
+def create_project(
+    name: str,
+    package_name: str,
+    templates_dir: Path = TEMPLATES_DIR,
+    projects_dir: Path = PROJECTS_DIR,
+) -> Path:
     """Create ``<projects_dir>/<name>`` and populate it from the template files.
 
     Copies ``build.gradle.kts`` into the project root, creates the standard
@@ -80,7 +85,9 @@ def main() -> int:
     Returns:
         0 on success, 1 on any error.
     """
-    parser = argparse.ArgumentParser(description="Create a new Kotlin project from templates.")
+    parser = argparse.ArgumentParser(
+        description="Create a new Kotlin project from templates."
+    )
     parser.add_argument("name", nargs="?", help="Project name (directory name).")
     parser.add_argument("package", nargs="?", help="Dotted Kotlin package name.")
     args = parser.parse_args()

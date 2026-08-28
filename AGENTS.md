@@ -19,6 +19,7 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 - Entry point: `main() -> int` + `raise SystemExit(main())`
 - Explicit exception handling (`HTTPError`, `URLError`, `ValueError`, `JSONDecodeError`)
 - Module-level constants: `RELEASES_URL`, `DEFAULT_TIMEOUT`, `USER_AGENT`
+- ruff is the project linter/formatter — always run `uv run ruff check --fix` and `uv run ruff format` after changes; implementation must pass both cleanly before finishing a task
 
 ## Run
 
