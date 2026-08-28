@@ -36,22 +36,20 @@ uv run create_project.py myapp   # → projects/myapp/ (optional `package` arg, 
 
 ## Git
 
-- `N` is the task number from the GitHub project (matches the `#` column in Implemented).
+- `N` is the task number from the GitHub project.
 - Branch: `N-description`
 - Commit: `#N: Short description` — keep messages simple and short (one line, no elaboration)
 - The `N` in the commit must match the `N` in the branch (e.g. branch `4-scaffold` → commit `#4: Scaffold project dir`).
 
-## Implemented
+## Modules
 
-| # | Task | File | Public API |
-|---|------|------|------------|
-| 1 | Fetch latest Kotlin version | `fetch_kotlin_version.py` | `get_latest_kotlin_version(timeout) -> str` |
-| 3 | Fetch latest Gradle version | `fetch_gradle_version.py` | `get_latest_gradle_version(timeout) -> str` |
-| 4 | Scaffold project dir from template | `create_project.py` | `create_project(name, package_name) -> Path` — copies `build.gradle.kts`, creates `src/main/kotlin` + `src/main/resources`, and `App.kt` into `<package_name>` dirs; replaces `{{PACKAGE_NAME}}` in both files (default `com.example`) |
+- `fetch_kotlin_version.py` — fetches the newest stable Kotlin version from the JetBrains/kotlin GitHub releases. `get_latest_kotlin_version(timeout: int = DEFAULT_TIMEOUT) -> str` returns e.g. `2.4.10`; `main()` prints it to stdout.
+- `fetch_gradle_version.py` — same for Gradle (gradle/gradle releases). `get_latest_gradle_version(timeout: int = DEFAULT_TIMEOUT) -> str` returns e.g. `8.14.2`; `main()` prints it.
+- `create_project.py` — `create_project(name, package_name, templates_dir, projects_dir) -> Path` copies `build.gradle.kts` into `<projects_dir>/<name>/`, creates `src/main/kotlin` + `src/main/resources`, copies `App.kt` into the `<package_name>` dirs, and replaces `{{PACKAGE_NAME}}` in both files (default package `com.example`). `main()` prompts for `name`/`package` when omitted from the CLI and prints the created path.
 
 ## Rules
 
-1. Update `AGENTS.md` after finishing each task (add to Implemented, update any section if changes relate to it)
+1. Update `AGENTS.md` after finishing each task (add to Modules, update any section if changes relate to it)
 2. Match existing code conventions (docstrings, types, error-handling pattern)
 3. Stdlib only — no new dependencies without explicit approval
 4. Follow `#N:` commit and `N-` branch naming
