@@ -11,12 +11,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from fetch_gradle_version import get_latest_gradle_version
+from fetch_kotlin_version import get_latest_kotlin_version
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 PROJECTS_DIR = Path(__file__).resolve().parent / "projects"
 TEMPLATE_FILES = ("build.gradle.kts",)
 DEFAULT_PACKAGE_NAME = "com.example"
 PACKAGE_NAME_PLACEHOLDER = "{{PACKAGE_NAME}}"
+KOTLIN_VERSION_PLACEHOLDER = "{{KOTLIN_VERSION}}"
 PACKAGE_RE = re.compile(r"^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)*$")
 # Deliberately simplified: also accepts Kotlin hard keywords (``class``) and
 # all-underscore (``_``) segments, which the Kotlin compiler would reject.
@@ -31,6 +33,7 @@ class ProjectArgs:
     name: str
     package_name: str
     gradle_version: str
+    kotlin_version: str
 
 
 def _validate_project_inputs(name: str, package_name: str) -> None:
@@ -88,37 +91,37 @@ def _strip_generated_comments(target: Path) -> None:
 
 
 def _populate_project_files(
-    target: Path, templates_dir: Path, package_name: str
+    target: Path, templates_dir: Path, project_args: ProjectArgs
 ) -> None:
     """Copy template files, create source layout dirs, and substitute placeholders."""
     # If a copy fails, the target directory is intentionally left on disk
     # so the user can inspect and remove it manually.
     for template_file in TEMPLATE_FILES:
         shutil.copyfile(templates_dir / template_file, target / template_file)
-    package_dirs = package_name.split(".")
+    package_dirs = project_args.package_name.split(".")
     package_dir = target / KOTLIN_SRC_DIR.joinpath(*package_dirs)
     package_dir.mkdir(parents=True)
     (target / RESOURCES_DIR).mkdir(parents=True)
     shutil.copyfile(templates_dir / "App.kt", package_dir / "App.kt")
     for file in (target / "build.gradle.kts", package_dir / "App.kt"):
         content = file.read_text()
-        file.write_text(content.replace(PACKAGE_NAME_PLACEHOLDER, package_name))
+        content = content.replace(PACKAGE_NAME_PLACEHOLDER, project_args.package_name)
+        file.write_text(content)
+    build_file = target / "build.gradle.kts"
+    content = build_file.read_text()
+    content = content.replace(KOTLIN_VERSION_PLACEHOLDER, project_args.kotlin_version)
+    build_file.write_text(content)
 
 
 def create_project(
-    name: str,
-    package_name: str,
-    gradle_version: str,
+    project_args: ProjectArgs,
     templates_dir: Path = TEMPLATES_DIR,
     projects_dir: Path = PROJECTS_DIR,
 ) -> Path:
     """Create ``<projects_dir>/<name>`` and populate it from the template files.
 
     Args:
-        name: project directory name.
-        package_name: dotted Kotlin package name used in sources, Gradle
-            scripts, and directory layout.
-        gradle_version: Gradle version passed to the ``gradle wrapper`` task.
+        project_args: resolved inputs describing the project to create.
         templates_dir: directory containing the template files.
         projects_dir: directory under which the project is created.
 
@@ -134,16 +137,16 @@ def create_project(
         subprocess.CalledProcessError: if a ``gradle`` command fails.
         shutil.Error: if a template file cannot be copied.
     """
-    _validate_project_inputs(name, package_name)
+    _validate_project_inputs(project_args.name, project_args.package_name)
     if shutil.which("gradle") is None:
         raise FileNotFoundError("gradle executable not found on PATH.")
-    target = projects_dir / name
+    target = projects_dir / project_args.name
     if target.exists():
         raise FileExistsError(f"Project directory already exists: {target}")
     target.mkdir(parents=True)
-    _run_gradle_init(target, name, gradle_version)
+    _run_gradle_init(target, project_args.name, project_args.gradle_version)
     _strip_generated_comments(target)
-    _populate_project_files(target, templates_dir, package_name)
+    _populate_project_files(target, templates_dir, project_args)
     return target
 
 
@@ -169,12 +172,23 @@ def _fetch_gradle_version() -> str | None:
     return None
 
 
+def _fetch_kotlin_version() -> str | None:
+    """Fetch the newest Kotlin version, printing an error and returning ``None``."""
+    try:
+        return get_latest_kotlin_version()
+    except urllib.error.HTTPError as exc:
+        print(f"Error: HTTP {exc.code} while fetching Kotlin version.", file=sys.stderr)
+    except urllib.error.URLError as exc:
+        print(f"Error: network/timeout: {exc.reason}", file=sys.stderr)
+    except (ValueError, json.JSONDecodeError) as exc:
+        print(f"Error: could not determine Kotlin version: {exc}", file=sys.stderr)
+    return None
+
+
 def _create_project_or_none(project_args: ProjectArgs) -> Path | None:
     """Call ``create_project``, printing an error and returning ``None`` on failure."""
     try:
-        return create_project(
-            project_args.name, project_args.package_name, project_args.gradle_version
-        )
+        return create_project(project_args)
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
     except FileExistsError:
@@ -231,14 +245,14 @@ def _resolve_package_name(cli_args: argparse.Namespace) -> str | None:
 
 
 def _build_project_args(
-    name: str, package_name: str, gradle_version: str
+    name: str, package_name: str, gradle_version: str, kotlin_version: str
 ) -> ProjectArgs:
     """Bundle the resolved inputs into a ``ProjectArgs``."""
-    return ProjectArgs(name, package_name, gradle_version)
+    return ProjectArgs(name, package_name, gradle_version, kotlin_version)
 
 
 def main() -> int:
-    """Parse arguments, resolve inputs, fetch the Gradle version, and print the path.
+    """Parse arguments, resolve inputs, fetch the versions, and print the path.
 
     Prompts for the project name or the package name if they are not provided
     via the CLI; the package defaults to ``DEFAULT_PACKAGE_NAME`` when the
@@ -258,9 +272,12 @@ def main() -> int:
     gradle_version = _fetch_gradle_version()
     if gradle_version is None:
         return 1
+    kotlin_version = _fetch_kotlin_version()
+    if kotlin_version is None:
+        return 1
 
     project_dir = _create_project_or_none(
-        _build_project_args(name, package_name, gradle_version)
+        _build_project_args(name, package_name, gradle_version, kotlin_version)
     )
     if project_dir is None:
         return 1
