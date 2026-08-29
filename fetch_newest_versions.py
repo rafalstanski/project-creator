@@ -110,12 +110,14 @@ def main() -> int:
     Returns:
         0 on success, 1 on any error.
     """
-    cli_args = _parse_args()
-    fetcher = fetch_gradle_version if cli_args.which == GRADLE else fetch_kotlin_version
     try:
+        cli_args = _parse_args()
+        fetcher = (
+            fetch_gradle_version if cli_args.which == GRADLE else fetch_kotlin_version
+        )
         print(fetcher(cli_args.timeout))
         return 0
-    except VersionFetchError as exc:
+    except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 

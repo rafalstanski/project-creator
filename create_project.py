@@ -148,9 +148,19 @@ def _substitute_placeholders(
 def _populate_project_files(
     project_directory: Path, templates_dir: Path, project_args: ProjectArgs
 ) -> None:
-    """Copy template files and substitute placeholders in ``project_directory``."""
-    _copy_template_files(project_directory, templates_dir, project_args.package_name)
-    _substitute_placeholders(project_directory, project_args)
+    """Copy template files and substitute placeholders in ``project_directory``.
+
+    Raises:
+        ProjectCreationError: if a template file cannot be copied or a project
+            file cannot be read or written.
+    """
+    try:
+        _copy_template_files(
+            project_directory, templates_dir, project_args.package_name
+        )
+        _substitute_placeholders(project_directory, project_args)
+    except OSError as exc:
+        raise ProjectCreationError(f"could not populate project files: {exc}") from exc
 
 
 def _create_project_directory(project_args: ProjectArgs, projects_dir: Path) -> Path:
@@ -197,10 +207,9 @@ def create_project(
     Raises:
         ValueError: if ``name`` or ``package_name`` is invalid.
         FileExistsError: if the project directory already exists.
-        FileNotFoundError: if the ``gradle`` executable is not on ``PATH``,
-            or if a template file is missing from ``templates_dir``.
-        ProjectCreationError: if a ``gradle`` command fails.
-        shutil.Error: if a template file cannot be copied.
+        FileNotFoundError: if the ``gradle`` executable is not on ``PATH``.
+        ProjectCreationError: if a ``gradle`` command fails, or if the template
+            files cannot be copied or the project files read or written.
     """
     _validate_project_inputs(project_args.name, project_args.package_name)
     project_directory = _create_project_directory(project_args, projects_dir)

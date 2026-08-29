@@ -54,7 +54,7 @@ Fetches the newest stable Gradle and Kotlin versions from their GitHub releases
 - `fetch_gradle_version(timeout: int = DEFAULT_TIMEOUT) -> str` → e.g. `9.7.1`
 - `fetch_kotlin_version(timeout: int = DEFAULT_TIMEOUT) -> str` → e.g. `2.4.10`
 - `VersionFetchError(Exception)` — the module's domain exception; `str(exc)` is the user-facing error message
-- `main()` — positional `which` arg (`gradle`/`kotlin`) + optional `--timeout`; prints the version to stdout
+- `main()` — positional `which` arg (`gradle`/`kotlin`) + optional `--timeout`; runs the whole pipeline in one `try`, prints the version to stdout; any `Exception` is printed as `Error: {exc}` to stderr and `main` returns 1
 
 Bricks: `_fetch_newest_version` (shared HTTP/JSON/tag-parsing engine, raises `HTTPError`/`URLError`/`ValueError`) → `_fetch_tool_version` (wraps them in `VersionFetchError`) → public `fetch_*` functions.
 
@@ -74,7 +74,7 @@ printed as `Error: <message>` to stderr and `main` returns 1:
 
 - `_parse_args` (CLI)
 - `_resolve_project_args` — resolves name/package from CLI or stdin via `_resolve_project_name` / `_resolve_package_name` (prompting via `_prompt_value`, default `com.example`), fetches the build-tool versions directly from `fetch_newest_versions` (`VersionFetchError` is caught by `main`), and packs everything into the `ProjectArgs` dataclass via `_build_project_args`
-- `create_project(project_args)` (a failed `gradle` command is wrapped in `ProjectCreationError`)
+- `create_project(project_args)` (a failed `gradle` command or a file copy/read/write failure is wrapped in `ProjectCreationError`)
 - prints the created path via `_print_created_path`
 
 `ProjectCreationError(Exception)` — the single domain exception; `str(exc)` is the user-facing error message.
