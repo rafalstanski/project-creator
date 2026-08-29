@@ -69,11 +69,11 @@ Result is cached in `java_versions.json`; a cache miss downloads the matching
 "Supported versions:" error message produced by an invalid `-jvm-target` flag.
 
 - `get_java_versions(kotlin_version: str, timeout: int = DEFAULT_TIMEOUT) -> JavaVersionInfo` → the proposed JVM version plus all supported ones
-- `JavaVersionInfo` — dataclass: `proposed: str`, `supported: tuple[str, ...]`; the proposed version is the `java` one installed on `PATH` if supported, else the newest supported one
+- `JavaVersionInfo` — dataclass: `proposed: str`, `supported: tuple[str, ...]`; the proposed version is the `java` one installed on `PATH` if supported, else the newest supported one, normalized to integer JVM toolchain form (`1.8` → `8`)
 - `JavaVersionLookupError(Exception)` — the module's domain exception; `str(exc)` is the user-facing error message
 - `main()` — positional `kotlin_version` arg + optional `--timeout`; prints the proposed version and then all supported versions comma-joined to stdout; any `Exception` is printed as `Error: {exc}` to stderr and `main` returns 1
 
-Bricks: `_load_mapping` / `_save_mapping` (read/write the mapping file; unreadable/corrupt content raises `ValueError`) → `_download_compiler` (download + extract `kotlinc`) + `_query_supported_versions` (parse the compiler output, raises `ValueError`) + `_download_supported_versions` (cache-miss path: download, query, save) → `_detect_installed_java` (`java -version`, returns `None` if unavailable/unparsable) + `_propose_version`; `_download_supported_versions` failures are wrapped in `JavaVersionLookupError` by `get_java_versions`.
+Bricks: `_load_mapping` / `_save_mapping` (read/write the mapping file; unreadable/corrupt content raises `ValueError`) → `_download_compiler` (download + extract `kotlinc`) + `_query_supported_versions` (parse the compiler output, raises `ValueError`) + `_download_supported_versions` (cache-miss path: download, query, save) → `_detect_installed_java` (`java -version`, returns `None` if unavailable/unparsable) + `_propose_version` (normalizes legacy `1.X` targets to integer toolchain form); `_download_supported_versions` failures are wrapped in `JavaVersionLookupError` by `get_java_versions`.
 
 ### `create_project.py`
 

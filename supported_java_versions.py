@@ -44,6 +44,11 @@ def _version_key(version: str) -> tuple[int, int]:
     return int(major), int(minor) if dot else 0
 
 
+def _valid_java_version(version: object) -> bool:
+    """Return whether ``version`` is a syntactically valid JVM version."""
+    return type(version) is str and JAVA_VERSION_RE.fullmatch(version) is not None
+
+
 def _load_mapping() -> dict[str, list[str]]:
     """Return the kotlin-version → java-versions mapping from ``JAVA_VERSIONS_FILE``.
 
@@ -58,14 +63,19 @@ def _load_mapping() -> dict[str, list[str]]:
         return {}
     if not isinstance(entries, dict):
         raise ValueError(f"unexpected JSON mapping in {JAVA_VERSIONS_FILE}.")
-    payload = cast("dict[str, list[str]]", entries)
+    payload = cast("dict[str, object]", entries)
     mapping: dict[str, list[str]] = {}
     for kotlin_version, versions in payload.items():
-        if not all(type(version) is str for version in versions):
+        if not isinstance(versions, list) or not versions:
             raise ValueError(
                 f"unexpected versions for {kotlin_version!r} in {JAVA_VERSIONS_FILE}."
             )
-        mapping[kotlin_version] = versions
+        supported = cast("list[str]", versions)
+        if not all(_valid_java_version(version) for version in supported):
+            raise ValueError(
+                f"unexpected versions for {kotlin_version!r} in {JAVA_VERSIONS_FILE}."
+            )
+        mapping[kotlin_version] = supported
     return mapping
 
 
@@ -87,6 +97,7 @@ def _download_compiler(kotlin_version: str, tmp_dir: Path, timeout: int) -> Path
         urllib.error.URLError: on network failure or timeout.
         OSError: if the archive cannot be written or extracted.
         ValueError: if the archive does not contain the expected layout.
+        zipfile.BadZipFile: if the downloaded archive is not a valid ZIP.
     """
     zip_path = tmp_dir / f"kotlin-compiler-{kotlin_version}.zip"
     url = KOTLIN_COMPILER_RELEASES_URL.format(kotlin_version=kotlin_version)
@@ -146,6 +157,7 @@ def _download_supported_versions(kotlin_version: str, timeout: int) -> tuple[str
         urllib.error.URLError: on network failure or timeout.
         OSError: if the archive or mapping file cannot be handled.
         ValueError: if the compiler output cannot be parsed.
+        zipfile.BadZipFile: if the downloaded archive is not a valid ZIP.
     """
     with tempfile.TemporaryDirectory(prefix="kotlin-compiler-") as tmp_dir:
         kotlin_exe = _download_compiler(kotlin_version, Path(tmp_dir), timeout)
@@ -185,11 +197,19 @@ def _detect_installed_java() -> str | None:
     return major
 
 
+def _to_toolchain_version(version: str) -> str:
+    """Return ``version`` as an integer JVM toolchain value (``"1.8"`` → ``"8"``)."""
+    if version.startswith("1."):
+        return version.removeprefix("1.")
+    return version
+
+
 def _propose_version(installed: str | None, supported: tuple[str, ...]) -> str:
-    """Return ``installed`` if it is supported, else the newest supported one."""
+    """Return ``installed`` if it is supported, else the newest supported one,
+    normalized to integer JVM toolchain form."""
     if installed is not None and installed in supported:
-        return installed
-    return max(supported, key=_version_key)
+        return _to_toolchain_version(installed)
+    return _to_toolchain_version(max(supported, key=_version_key))
 
 
 def get_java_versions(
@@ -225,7 +245,12 @@ def get_java_versions(
         ) from exc
     except urllib.error.URLError as exc:
         raise JavaVersionLookupError(f"network/timeout: {exc.reason}") from exc
-    except (ValueError, json.JSONDecodeError, OSError) as exc:
+    except (
+        ValueError,
+        json.JSONDecodeError,
+        OSError,
+        zipfile.BadZipFile,
+    ) as exc:
         raise JavaVersionLookupError(
             f"Java version lookup for Kotlin {kotlin_version} failed: {exc}"
         ) from exc
