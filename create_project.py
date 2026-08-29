@@ -1,17 +1,14 @@
 """Create a new Kotlin project directory from the bundled template files."""
 
 import argparse
-import json
 import re
 import shutil
 import subprocess
 import sys
-import urllib.error
 from dataclasses import dataclass
 from pathlib import Path
 
-from fetch_gradle_version import get_latest_gradle_version
-from fetch_kotlin_version import get_latest_kotlin_version
+from fetch_newest_versions import fetch_gradle_version, fetch_kotlin_version
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 PROJECTS_DIR = Path(__file__).resolve().parent / "projects"
@@ -24,6 +21,10 @@ PACKAGE_RE = re.compile(r"^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)*$")
 # all-underscore (``_``) segments, which the Kotlin compiler would reject.
 KOTLIN_SRC_DIR = Path("src/main/kotlin")
 RESOURCES_DIR = Path("src/main/resources")
+
+
+class ProjectCreationError(Exception):
+    """Any error while creating a project; ``str(exc)`` is user-facing."""
 
 
 @dataclass
@@ -46,41 +47,59 @@ def _validate_project_inputs(name: str, package_name: str) -> None:
         raise ValueError(f"Invalid package name: {package_name!r}")
 
 
-def _run_gradle_init(target: Path, name: str, gradle_version: str) -> None:
-    """Run ``gradle init`` and ``gradle wrapper`` in ``target``."""
-    subprocess.run(
-        [
-            "gradle",
-            "init",
-            "--type",
-            "basic",
-            "--dsl",
-            "kotlin",
-            "--project-name",
-            name,
-            "--no-incubating",
-        ],
-        cwd=target,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    subprocess.run(
-        ["gradle", "wrapper", "--gradle-version", gradle_version],
-        cwd=target,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+def _require_gradle_executable() -> None:
+    """Ensure the ``gradle`` executable is available on ``PATH``.
+
+    Raises:
+        FileNotFoundError: if the ``gradle`` executable is not on ``PATH``.
+    """
+    if shutil.which("gradle") is None:
+        raise FileNotFoundError("gradle executable not found on PATH.")
 
 
-def _strip_generated_comments(target: Path) -> None:
+def _run_gradle_init(project_directory: Path, name: str, gradle_version: str) -> None:
+    """Run ``gradle init`` and ``gradle wrapper`` in ``project_directory``.
+
+    Raises:
+        ProjectCreationError: if a ``gradle`` command fails.
+    """
+    try:
+        subprocess.run(
+            [
+                "gradle",
+                "init",
+                "--type",
+                "basic",
+                "--dsl",
+                "kotlin",
+                "--project-name",
+                name,
+                "--no-incubating",
+            ],
+            cwd=project_directory,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["gradle", "wrapper", "--gradle-version", gradle_version],
+            cwd=project_directory,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or "").strip()
+        raise ProjectCreationError(f"gradle command failed: {detail}") from exc
+
+
+def _strip_generated_comments(project_directory: Path) -> None:
     """Remove generated header comments from Gradle build files."""
-    settings_file = target / "settings.gradle.kts"
+    settings_file = project_directory / "settings.gradle.kts"
     settings_file.write_text(
         re.sub(r"/\*.*?\*/\s*", "", settings_file.read_text(), count=1, flags=re.DOTALL)
     )
-    properties_file = target / "gradle.properties"
+    properties_file = project_directory / "gradle.properties"
     properties_file.write_text(
         "\n".join(
             line
@@ -90,27 +109,84 @@ def _strip_generated_comments(target: Path) -> None:
     )
 
 
-def _populate_project_files(
-    target: Path, templates_dir: Path, project_args: ProjectArgs
+def _copy_template_files(
+    project_directory: Path, templates_dir: Path, package_name: str
 ) -> None:
-    """Copy template files, create source layout dirs, and substitute placeholders."""
-    # If a copy fails, the target directory is intentionally left on disk
-    # so the user can inspect and remove it manually.
+    """Copy template files into ``project_directory`` and create the source layout dirs.
+
+    If a copy fails, the project directory is intentionally left on disk
+    so the user can inspect and remove it manually.
+    """
     for template_file in TEMPLATE_FILES:
-        shutil.copyfile(templates_dir / template_file, target / template_file)
-    package_dirs = project_args.package_name.split(".")
-    package_dir = target / KOTLIN_SRC_DIR.joinpath(*package_dirs)
+        shutil.copyfile(
+            templates_dir / template_file, project_directory / template_file
+        )
+    package_dir = project_directory / KOTLIN_SRC_DIR.joinpath(*package_name.split("."))
     package_dir.mkdir(parents=True)
-    (target / RESOURCES_DIR).mkdir(parents=True)
+    (project_directory / RESOURCES_DIR).mkdir(parents=True)
     shutil.copyfile(templates_dir / "App.kt", package_dir / "App.kt")
-    for file in (target / "build.gradle.kts", package_dir / "App.kt"):
+
+
+def _substitute_placeholders(
+    project_directory: Path, project_args: ProjectArgs
+) -> None:
+    """Replace the template placeholders in the created project files."""
+    package_dirs = project_args.package_name.split(".")
+    package_dir = project_directory / KOTLIN_SRC_DIR.joinpath(*package_dirs)
+    for file in (project_directory / "build.gradle.kts", package_dir / "App.kt"):
         content = file.read_text()
         content = content.replace(PACKAGE_NAME_PLACEHOLDER, project_args.package_name)
         file.write_text(content)
-    build_file = target / "build.gradle.kts"
-    content = build_file.read_text()
-    content = content.replace(KOTLIN_VERSION_PLACEHOLDER, project_args.kotlin_version)
-    build_file.write_text(content)
+    build_file = project_directory / "build.gradle.kts"
+    build_file.write_text(
+        build_file.read_text().replace(
+            KOTLIN_VERSION_PLACEHOLDER, project_args.kotlin_version
+        )
+    )
+
+
+def _populate_project_files(
+    project_directory: Path, templates_dir: Path, project_args: ProjectArgs
+) -> None:
+    """Copy template files and substitute placeholders in ``project_directory``.
+
+    Raises:
+        ProjectCreationError: if a template file cannot be copied or a project
+            file cannot be read or written.
+    """
+    try:
+        _copy_template_files(
+            project_directory, templates_dir, project_args.package_name
+        )
+        _substitute_placeholders(project_directory, project_args)
+    except OSError as exc:
+        raise ProjectCreationError(f"could not populate project files: {exc}") from exc
+
+
+def _create_project_directory(project_args: ProjectArgs, projects_dir: Path) -> Path:
+    """Create the project directory under ``projects_dir``.
+
+    Raises:
+        FileExistsError: if the project directory already exists.
+    """
+    project_directory = projects_dir / project_args.name
+    if project_directory.exists():
+        raise FileExistsError(f"Project directory already exists: {project_directory}")
+    project_directory.mkdir(parents=True)
+    return project_directory
+
+
+def _initialize_gradle(project_args: ProjectArgs, project_directory: Path) -> None:
+    """Initialize Gradle in the project: check the CLI, run ``gradle init``,
+    then strip the generated comments from the Gradle build files.
+
+    Raises:
+        FileNotFoundError: if the ``gradle`` executable is not on ``PATH``.
+        ProjectCreationError: if a ``gradle`` command fails.
+    """
+    _require_gradle_executable()
+    _run_gradle_init(project_directory, project_args.name, project_args.gradle_version)
+    _strip_generated_comments(project_directory)
 
 
 def create_project(
@@ -131,84 +207,31 @@ def create_project(
     Raises:
         ValueError: if ``name`` or ``package_name`` is invalid.
         FileExistsError: if the project directory already exists.
-        FileNotFoundError: if the ``gradle`` executable is not on ``PATH``,
-            if a template file is missing from ``templates_dir``, or if a
-            generated file is missing.
-        subprocess.CalledProcessError: if a ``gradle`` command fails.
-        shutil.Error: if a template file cannot be copied.
+        FileNotFoundError: if the ``gradle`` executable is not on ``PATH``.
+        ProjectCreationError: if a ``gradle`` command fails, or if the template
+            files cannot be copied or the project files read or written.
     """
     _validate_project_inputs(project_args.name, project_args.package_name)
-    if shutil.which("gradle") is None:
-        raise FileNotFoundError("gradle executable not found on PATH.")
-    target = projects_dir / project_args.name
-    if target.exists():
-        raise FileExistsError(f"Project directory already exists: {target}")
-    target.mkdir(parents=True)
-    _run_gradle_init(target, project_args.name, project_args.gradle_version)
-    _strip_generated_comments(target)
-    _populate_project_files(target, templates_dir, project_args)
-    return target
+    project_directory = _create_project_directory(project_args, projects_dir)
+    _initialize_gradle(project_args, project_directory)
+    _populate_project_files(project_directory, templates_dir, project_args)
+    return project_directory
 
 
-def _prompt_value(prompt: str, label: str) -> str | None:
-    """Read a value from stdin, printing an error and returning ``None`` on EOF."""
+def _prompt_value(prompt: str, label: str) -> str:
+    """Read a value from stdin, raising if no input is available."""
     try:
         return input(prompt).strip()
-    except EOFError:
-        print(f"Error: no {label} provided.", file=sys.stderr)
-        return None
+    except EOFError as exc:
+        raise ProjectCreationError(f"no {label} provided.") from exc
 
 
-def _fetch_gradle_version() -> str | None:
-    """Fetch the newest Gradle version, printing an error and returning ``None``."""
+def _print_created_path(project_directory: Path) -> int:
+    """Print ``project_directory`` relative to cwd (falling back to absolute)."""
     try:
-        return get_latest_gradle_version()
-    except urllib.error.HTTPError as exc:
-        print(f"Error: HTTP {exc.code} while fetching Gradle version.", file=sys.stderr)
-    except urllib.error.URLError as exc:
-        print(f"Error: network/timeout: {exc.reason}", file=sys.stderr)
-    except (ValueError, json.JSONDecodeError) as exc:
-        print(f"Error: could not determine Gradle version: {exc}", file=sys.stderr)
-    return None
-
-
-def _fetch_kotlin_version() -> str | None:
-    """Fetch the newest Kotlin version, printing an error and returning ``None``."""
-    try:
-        return get_latest_kotlin_version()
-    except urllib.error.HTTPError as exc:
-        print(f"Error: HTTP {exc.code} while fetching Kotlin version.", file=sys.stderr)
-    except urllib.error.URLError as exc:
-        print(f"Error: network/timeout: {exc.reason}", file=sys.stderr)
-    except (ValueError, json.JSONDecodeError) as exc:
-        print(f"Error: could not determine Kotlin version: {exc}", file=sys.stderr)
-    return None
-
-
-def _create_project_or_none(project_args: ProjectArgs) -> Path | None:
-    """Call ``create_project``, printing an error and returning ``None`` on failure."""
-    try:
-        return create_project(project_args)
-    except ValueError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-    except FileExistsError:
-        print(f"Error: project '{project_args.name}' already exists.", file=sys.stderr)
-    except FileNotFoundError as exc:
-        print(f"Error: not found: {exc}", file=sys.stderr)
-    except subprocess.CalledProcessError as exc:
-        detail = (exc.stderr or exc.stdout or "").strip()
-        print(f"Error: gradle command failed: {detail}", file=sys.stderr)
-    except OSError as exc:
-        print(f"Error: could not copy template files: {exc}", file=sys.stderr)
-    return None
-
-
-def _print_created_path(project_dir: Path) -> int:
-    """Print ``project_dir`` relative to cwd (falling back to absolute)."""
-    try:
-        print(project_dir.relative_to(Path.cwd()))
+        print(project_directory.relative_to(Path.cwd()))
     except ValueError:
-        print(project_dir)
+        print(project_directory)
     return 0
 
 
@@ -222,14 +245,14 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _resolve_project_name(cli_args: argparse.Namespace) -> str | None:
+def _resolve_project_name(cli_args: argparse.Namespace) -> str:
     """Return the project name from the CLI, or read it from stdin."""
     if cli_args.name is None:
         return _prompt_value("Project name: ", "project name")
     return cli_args.name.strip()
 
 
-def _resolve_package_name(cli_args: argparse.Namespace) -> str | None:
+def _resolve_package_name(cli_args: argparse.Namespace) -> str:
     """Return the package name, prompting or defaulting to ``DEFAULT_PACKAGE_NAME``."""
     if cli_args.package is None:
         package = _prompt_value(
@@ -237,8 +260,6 @@ def _resolve_package_name(cli_args: argparse.Namespace) -> str | None:
         )
     else:
         package = cli_args.package.strip()
-    if package is None:
-        return None
     if not package:
         return DEFAULT_PACKAGE_NAME
     return package
@@ -251,8 +272,19 @@ def _build_project_args(
     return ProjectArgs(name, package_name, gradle_version, kotlin_version)
 
 
+def _resolve_project_args(cli_args: argparse.Namespace) -> ProjectArgs:
+    """Resolve the project name and package name, fetch the build-tool
+    versions, and bundle everything into a ``ProjectArgs``."""
+    name = _resolve_project_name(cli_args)
+    package_name = _resolve_package_name(cli_args)
+    gradle_version = fetch_gradle_version()
+    kotlin_version = fetch_kotlin_version()
+    return _build_project_args(name, package_name, gradle_version, kotlin_version)
+
+
 def main() -> int:
-    """Parse arguments, resolve inputs, fetch the versions, and print the path.
+    """Parse arguments, resolve the project inputs, create the project,
+    and print the created path.
 
     Prompts for the project name or the package name if they are not provided
     via the CLI; the package defaults to ``DEFAULT_PACKAGE_NAME`` when the
@@ -261,28 +293,14 @@ def main() -> int:
     Returns:
         0 on success, 1 on any error.
     """
-    cli_args = _parse_args()
-
-    name = _resolve_project_name(cli_args)
-    if name is None:
+    try:
+        cli_args = _parse_args()
+        project_args = _resolve_project_args(cli_args)
+        project_directory = create_project(project_args)
+        return _print_created_path(project_directory)
+    except Exception as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         return 1
-    package_name = _resolve_package_name(cli_args)
-    if package_name is None:
-        return 1
-    gradle_version = _fetch_gradle_version()
-    if gradle_version is None:
-        return 1
-    kotlin_version = _fetch_kotlin_version()
-    if kotlin_version is None:
-        return 1
-
-    project_dir = _create_project_or_none(
-        _build_project_args(name, package_name, gradle_version, kotlin_version)
-    )
-    if project_dir is None:
-        return 1
-
-    return _print_created_path(project_dir)
 
 
 if __name__ == "__main__":
