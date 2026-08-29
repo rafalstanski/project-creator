@@ -44,8 +44,8 @@ def _version_key(version: str) -> tuple[int, int]:
     return int(major), int(minor) if dot else 0
 
 
-def _load_mapping(mapping_file: Path) -> dict[str, list[str]]:
-    """Return the kotlin-version → java-versions mapping from ``mapping_file``.
+def _load_mapping() -> dict[str, list[str]]:
+    """Return the kotlin-version → java-versions mapping from ``JAVA_VERSIONS_FILE``.
 
     An absent file yields an empty mapping.
 
@@ -53,29 +53,27 @@ def _load_mapping(mapping_file: Path) -> dict[str, list[str]]:
         ValueError: if the file is present but does not hold a valid mapping.
     """
     try:
-        entries: object = json.loads(mapping_file.read_text())
+        entries: object = json.loads(JAVA_VERSIONS_FILE.read_text())
     except FileNotFoundError:
         return {}
     if not isinstance(entries, dict):
-        raise ValueError(f"unexpected JSON mapping in {mapping_file}.")
+        raise ValueError(f"unexpected JSON mapping in {JAVA_VERSIONS_FILE}.")
     payload = cast("dict[str, list[str]]", entries)
     mapping: dict[str, list[str]] = {}
     for kotlin_version, versions in payload.items():
         if not all(type(version) is str for version in versions):
             raise ValueError(
-                f"unexpected versions for {kotlin_version!r} in {mapping_file}."
+                f"unexpected versions for {kotlin_version!r} in {JAVA_VERSIONS_FILE}."
             )
         mapping[kotlin_version] = versions
     return mapping
 
 
-def _save_mapping(
-    mapping_file: Path, kotlin_version: str, versions: tuple[str, ...]
-) -> None:
-    """Merge ``versions`` under ``kotlin_version`` into ``mapping_file``."""
-    mapping = _load_mapping(mapping_file)
+def _save_mapping(kotlin_version: str, versions: tuple[str, ...]) -> None:
+    """Merge ``versions`` under ``kotlin_version`` into ``JAVA_VERSIONS_FILE``."""
+    mapping = _load_mapping()
     mapping[kotlin_version] = list(versions)
-    mapping_file.write_text(json.dumps(mapping, indent=4, sort_keys=True) + "\n")
+    JAVA_VERSIONS_FILE.write_text(json.dumps(mapping, indent=4, sort_keys=True) + "\n")
 
 
 def _download_compiler(kotlin_version: str, tmp_dir: Path, timeout: int) -> Path:
@@ -137,13 +135,11 @@ def _query_supported_versions(kotlin_exe: Path) -> tuple[str, ...]:
     return tuple(versions)
 
 
-def _download_supported_versions(
-    kotlin_version: str, mapping_file: Path, timeout: int
-) -> tuple[str, ...]:
+def _download_supported_versions(kotlin_version: str, timeout: int) -> tuple[str, ...]:
     """Return the JVM versions supported by Kotlin ``kotlin_version``.
 
     The Kotlin compiler is downloaded, queried, and the result is cached in
-    ``mapping_file``.
+    ``JAVA_VERSIONS_FILE``.
 
     Raises:
         urllib.error.HTTPError: if the download returns a non-2xx status.
@@ -154,7 +150,7 @@ def _download_supported_versions(
     with tempfile.TemporaryDirectory(prefix="kotlin-compiler-") as tmp_dir:
         kotlin_exe = _download_compiler(kotlin_version, Path(tmp_dir), timeout)
         supported = _query_supported_versions(kotlin_exe)
-        _save_mapping(mapping_file, kotlin_version, supported)
+        _save_mapping(kotlin_version, supported)
     return supported
 
 
@@ -197,32 +193,27 @@ def _propose_version(installed: str | None, supported: tuple[str, ...]) -> str:
 
 
 def get_java_versions(
-    kotlin_version: str,
-    timeout: int = DEFAULT_TIMEOUT,
-    mapping_file: Path = JAVA_VERSIONS_FILE,
+    kotlin_version: str, timeout: int = DEFAULT_TIMEOUT
 ) -> JavaVersionInfo:
     """Return the proposed and all supported JVM versions for ``kotlin_version``.
 
-    The versions are taken from ``mapping_file`` if already cached there;
-    otherwise they are fetched from the Kotlin compiler and cached. The
-    proposed version is the one installed on this machine if supported, else
-    the newest supported one.
+    The versions are taken from the ``java_versions.json`` cache if already
+    stored there; otherwise they are fetched from the Kotlin compiler and
+    cached. The proposed version is the one installed on this machine if
+    supported, else the newest supported one.
 
     Args:
         kotlin_version: the Kotlin version to look up, e.g. ``2.4.10``.
         timeout: network timeout in seconds.
-        mapping_file: path of the kotlin-version → java-versions mapping file.
 
     Raises:
         JavaVersionLookupError: if the versions cannot be determined or the
             mapping file cannot be read, written, or is invalid.
     """
     try:
-        versions = _load_mapping(mapping_file).get(kotlin_version)
+        versions = _load_mapping().get(kotlin_version)
         if versions is None:
-            supported = _download_supported_versions(
-                kotlin_version, mapping_file, timeout
-            )
+            supported = _download_supported_versions(kotlin_version, timeout)
         else:
             supported = tuple(versions)
         installed = _detect_installed_java()

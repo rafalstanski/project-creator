@@ -68,7 +68,7 @@ Result is cached in `java_versions.json`; a cache miss downloads the matching
 `kotlin-compiler-<ver>.zip` from the Kotlin GitHub release and parses the compiler's
 "Supported versions:" error message produced by an invalid `-jvm-target` flag.
 
-- `get_java_versions(kotlin_version: str, timeout: int = DEFAULT_TIMEOUT, mapping_file: Path = JAVA_VERSIONS_FILE) -> JavaVersionInfo` → the proposed JVM version plus all supported ones
+- `get_java_versions(kotlin_version: str, timeout: int = DEFAULT_TIMEOUT) -> JavaVersionInfo` → the proposed JVM version plus all supported ones
 - `JavaVersionInfo` — dataclass: `proposed: str`, `supported: tuple[str, ...]`; the proposed version is the `java` one installed on `PATH` if supported, else the newest supported one
 - `JavaVersionLookupError(Exception)` — the module's domain exception; `str(exc)` is the user-facing error message
 - `main()` — positional `kotlin_version` arg + optional `--timeout`; prints the proposed version and then all supported versions comma-joined to stdout; any `Exception` is printed as `Error: {exc}` to stderr and `main` returns 1
