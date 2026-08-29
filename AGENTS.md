@@ -37,13 +37,6 @@ uv run pyright --warnings        # → 0 errors, 0 warnings
 - `templates/` — source template files copied into new projects.
 - `projects/` — generated project directories (created at runtime).
 
-## Git
-
-- `N` is the task number from the GitHub project.
-- Branch: `N-description`
-- Commit: `#N: Short description` — keep messages simple and short (one line, no elaboration)
-- The `N` in the commit must match the `N` in the branch (e.g. branch `4-scaffold` → commit `#4: Scaffold project dir`).
-
 ## Modules
 
 - `fetch_kotlin_version.py` — Kotlin version lookup
@@ -66,7 +59,7 @@ Same, for Gradle (gradle/gradle releases).
 
 ### `create_project.py`
 
-`create_project(name, package_name, gradle_version, templates_dir, projects_dir) -> Path`
+`create_project(project_args: ProjectArgs, templates_dir, projects_dir) -> Path`
 
 - creates `<projects_dir>/<name>/`, requires `gradle` on `PATH`
 - runs `gradle init --type basic --dsl kotlin --project-name <name> --no-incubating`
@@ -75,12 +68,14 @@ Same, for Gradle (gradle/gradle releases).
 - copies `build.gradle.kts` into project root
 - creates `src/main/kotlin` + `src/main/resources`
 - copies `App.kt` into the `<package_name>` dirs, replaces `{{PACKAGE_NAME}}` (default `com.example`)
+- replaces `{{KOTLIN_VERSION}}` in `build.gradle.kts` with the fetched `kotlin_version`
 
 `main()` flow:
 
 - `_parse_args` (CLI)
 - resolves name/package from CLI or stdin via `_resolve_project_name` / `_resolve_package_name` (prompting via `_prompt_value`, default `com.example`)
 - `_fetch_gradle_version` (errors → `None`)
+- `_fetch_kotlin_version` (errors → `None`)
 - packs into the `ProjectArgs` dataclass via `_build_project_args`
 - creates via `_create_project_or_none(project_args)` (errors → `None`)
 - prints the created path via `_print_created_path`
@@ -90,4 +85,3 @@ Same, for Gradle (gradle/gradle releases).
 1. Update `AGENTS.md` after finishing each task (add to Modules, update any section if changes relate to it)
 2. Match existing code conventions (docstrings, types, error-handling pattern)
 3. Stdlib recommended — external dependencies only if needed
-4. Follow `#N:` commit and `N-` branch naming
