@@ -23,15 +23,15 @@ Input: project name + package name. Uses latest stable versions fetched from Git
   - User-facing failures: wrap low-level exceptions in a domain exception (e.g. `ProjectCreationError`) with a user-readable message; use `raise ... from exc` to keep the chain.
   - `main()` runs the whole pipeline in one `try`, catches the general `Exception`, prints `Error: {exc}` to stderr, and returns 1.
   - Functions never return `None` to signal failure — raise instead, so callers don't `is None`-check.
-- Module-level constants: `RELEASES_URL`, `DEFAULT_TIMEOUT`, `USER_AGENT`
+- Module-level constants: `GRADLE_RELEASES_URL`, `KOTLIN_RELEASES_URL`, `DEFAULT_TIMEOUT`, `USER_AGENT`
 - ruff is the project linter/formatter — always run `uv run ruff check --fix` and `uv run ruff format` after changes; implementation must pass both cleanly before finishing a task
 - pyright is the type checker (strict mode, config in `pyrightconfig.json`) — always run `uv run pyright --warnings` after changes; must pass cleanly before finishing a task
 
 ## Run
 
 ```bash
-uv run fetch_kotlin_version.py   # → 2.4.10
-uv run fetch_gradle_version.py   # → 9.7.1
+uv run fetch_newest_versions.py kotlin   # → 2.4.10
+uv run fetch_newest_versions.py gradle   # → 9.7.1
 uv run create_project.py myapp   # → projects/myapp/ (optional `package` arg, default `com.example`)
 uv run pyright --warnings        # → 0 errors, 0 warnings
 ```
@@ -43,23 +43,20 @@ uv run pyright --warnings        # → 0 errors, 0 warnings
 
 ## Modules
 
-- `fetch_kotlin_version.py` — Kotlin version lookup
-- `fetch_gradle_version.py` — Gradle version lookup
+- `fetch_newest_versions.py` — Gradle + Kotlin version lookup
 - `create_project.py` — Gradle + Kotlin scaffold generator
 
-### `fetch_kotlin_version.py`
+### `fetch_newest_versions.py`
 
-Fetches the newest stable Kotlin version from the JetBrains/kotlin GitHub releases.
+Fetches the newest stable Gradle and Kotlin versions from their GitHub releases
+(gradle/gradle, JetBrains/kotlin).
 
-- `get_latest_kotlin_version(timeout: int = DEFAULT_TIMEOUT) -> str` → e.g. `2.4.10`
-- `main()` prints it to stdout
+- `fetch_gradle_version(timeout: int = DEFAULT_TIMEOUT) -> str` → e.g. `9.7.1`
+- `fetch_kotlin_version(timeout: int = DEFAULT_TIMEOUT) -> str` → e.g. `2.4.10`
+- `VersionFetchError(Exception)` — the module's domain exception; `str(exc)` is the user-facing error message
+- `main()` — positional `which` arg (`gradle`/`kotlin`) + optional `--timeout`; prints the version to stdout
 
-### `fetch_gradle_version.py`
-
-Same, for Gradle (gradle/gradle releases).
-
-- `get_latest_gradle_version(timeout: int = DEFAULT_TIMEOUT) -> str` → e.g. `8.14.2`
-- `main()` prints it
+Bricks: `_fetch_newest_version` (shared HTTP/JSON/tag-parsing engine, raises `HTTPError`/`URLError`/`ValueError`) → `_fetch_tool_version` (wraps them in `VersionFetchError`) → public `fetch_*` functions.
 
 ### `create_project.py`
 
@@ -76,7 +73,7 @@ Runs four lego bricks in order:
 printed as `Error: <message>` to stderr and `main` returns 1:
 
 - `_parse_args` (CLI)
-- `_resolve_project_args` — resolves name/package from CLI or stdin via `_resolve_project_name` / `_resolve_package_name` (prompting via `_prompt_value`, default `com.example`), fetches versions via `_fetch_gradle_version` / `_fetch_kotlin_version` (fetch failures are wrapped in `ProjectCreationError`), and packs everything into the `ProjectArgs` dataclass via `_build_project_args`
+- `_resolve_project_args` — resolves name/package from CLI or stdin via `_resolve_project_name` / `_resolve_package_name` (prompting via `_prompt_value`, default `com.example`), fetches the build-tool versions directly from `fetch_newest_versions` (`VersionFetchError` is caught by `main`), and packs everything into the `ProjectArgs` dataclass via `_build_project_args`
 - `create_project(project_args)` (a failed `gradle` command is wrapped in `ProjectCreationError`)
 - prints the created path via `_print_created_path`
 

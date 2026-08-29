@@ -1,17 +1,14 @@
 """Create a new Kotlin project directory from the bundled template files."""
 
 import argparse
-import json
 import re
 import shutil
 import subprocess
 import sys
-import urllib.error
 from dataclasses import dataclass
 from pathlib import Path
 
-from fetch_gradle_version import get_latest_gradle_version
-from fetch_kotlin_version import get_latest_kotlin_version
+from fetch_newest_versions import fetch_gradle_version, fetch_kotlin_version
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 PROJECTS_DIR = Path(__file__).resolve().parent / "projects"
@@ -220,38 +217,6 @@ def _prompt_value(prompt: str, label: str) -> str:
         raise ProjectCreationError(f"no {label} provided.") from exc
 
 
-def _fetch_gradle_version() -> str:
-    """Fetch the newest Gradle version, wrapping errors in ``ProjectCreationError``."""
-    try:
-        return get_latest_gradle_version()
-    except urllib.error.HTTPError as exc:
-        raise ProjectCreationError(
-            f"HTTP {exc.code} while fetching Gradle version."
-        ) from exc
-    except urllib.error.URLError as exc:
-        raise ProjectCreationError(f"network/timeout: {exc.reason}") from exc
-    except (ValueError, json.JSONDecodeError) as exc:
-        raise ProjectCreationError(
-            f"could not determine Gradle version: {exc}"
-        ) from exc
-
-
-def _fetch_kotlin_version() -> str:
-    """Fetch the newest Kotlin version, wrapping errors in ``ProjectCreationError``."""
-    try:
-        return get_latest_kotlin_version()
-    except urllib.error.HTTPError as exc:
-        raise ProjectCreationError(
-            f"HTTP {exc.code} while fetching Kotlin version."
-        ) from exc
-    except urllib.error.URLError as exc:
-        raise ProjectCreationError(f"network/timeout: {exc.reason}") from exc
-    except (ValueError, json.JSONDecodeError) as exc:
-        raise ProjectCreationError(
-            f"could not determine Kotlin version: {exc}"
-        ) from exc
-
-
 def _print_created_path(project_directory: Path) -> int:
     """Print ``project_directory`` relative to cwd (falling back to absolute)."""
     try:
@@ -303,8 +268,8 @@ def _resolve_project_args(cli_args: argparse.Namespace) -> ProjectArgs:
     versions, and bundle everything into a ``ProjectArgs``."""
     name = _resolve_project_name(cli_args)
     package_name = _resolve_package_name(cli_args)
-    gradle_version = _fetch_gradle_version()
-    kotlin_version = _fetch_kotlin_version()
+    gradle_version = fetch_gradle_version()
+    kotlin_version = fetch_kotlin_version()
     return _build_project_args(name, package_name, gradle_version, kotlin_version)
 
 
