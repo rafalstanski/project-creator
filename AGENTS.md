@@ -65,22 +65,18 @@ Same, for Gradle (gradle/gradle releases).
 
 `create_project(project_args: ProjectArgs, templates_dir, projects_dir) -> Path`
 
-- creates `<projects_dir>/<name>/`, requires `gradle` on `PATH`
-- runs `gradle init --type basic --dsl kotlin --project-name <name> --no-incubating`
-- runs `gradle wrapper --gradle-version <gradle_version>`
-- strips generated comments from `settings.gradle.kts` + `gradle.properties`
-- copies `build.gradle.kts` into project root
-- creates `src/main/kotlin` + `src/main/resources`
-- copies `App.kt` into the `<package_name>` dirs, replaces `{{PACKAGE_NAME}}` (default `com.example`)
-- replaces `{{KOTLIN_VERSION}}` in `build.gradle.kts` with the fetched `kotlin_version`
+Runs four lego bricks in order:
+
+1. `_validate_project_inputs` — validates name/package format
+2. `_create_project_directory` — checks the directory is free and creates `<projects_dir>/<name>/`
+3. `_initialize_gradle` — `_require_gradle_executable`, `_run_gradle_init` (`gradle init --type basic --dsl kotlin --project-name <name> --no-incubating` + `gradle wrapper --gradle-version <gradle_version>`), `_strip_generated_comments` (from `settings.gradle.kts` + `gradle.properties`)
+4. `_populate_project_files` — `_copy_template_files` (copies `build.gradle.kts` into project root, creates `src/main/kotlin` + `src/main/resources`, copies `App.kt` into the `<package_name>` dirs) + `_substitute_placeholders` (replaces `{{PACKAGE_NAME}}`, default `com.example`, and `{{KOTLIN_VERSION}}` with the fetched `kotlin_version`)
 
 `main()` flow — the whole pipeline runs in one `try`; any `Exception` is
 printed as `Error: <message>` to stderr and `main` returns 1:
 
 - `_parse_args` (CLI)
-- resolves name/package from CLI or stdin via `_resolve_project_name` / `_resolve_package_name` (prompting via `_prompt_value`, default `com.example`)
-- `_fetch_gradle_version` / `_fetch_kotlin_version` (fetch failures are wrapped in `ProjectCreationError`)
-- packs into the `ProjectArgs` dataclass via `_build_project_args`
+- `_resolve_project_args` — resolves name/package from CLI or stdin via `_resolve_project_name` / `_resolve_package_name` (prompting via `_prompt_value`, default `com.example`), fetches versions via `_fetch_gradle_version` / `_fetch_kotlin_version` (fetch failures are wrapped in `ProjectCreationError`), and packs everything into the `ProjectArgs` dataclass via `_build_project_args`
 - `create_project(project_args)` (a failed `gradle` command is wrapped in `ProjectCreationError`)
 - prints the created path via `_print_created_path`
 
