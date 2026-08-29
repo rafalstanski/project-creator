@@ -37,13 +37,6 @@ uv run pyright --warnings        # → 0 errors, 0 warnings
 - `templates/` — source template files copied into new projects.
 - `projects/` — generated project directories (created at runtime).
 
-## Git
-
-- `N` is the task number from the GitHub project.
-- Branch: `N-description`
-- Commit: `#N: Short description` — keep messages simple and short (one line, no elaboration)
-- The `N` in the commit must match the `N` in the branch (e.g. branch `4-scaffold` → commit `#4: Scaffold project dir`).
-
 ## Modules
 
 - `fetch_kotlin_version.py` — Kotlin version lookup
@@ -90,4 +83,3 @@ Same, for Gradle (gradle/gradle releases).
 1. Update `AGENTS.md` after finishing each task (add to Modules, update any section if changes relate to it)
 2. Match existing code conventions (docstrings, types, error-handling pattern)
 3. Stdlib recommended — external dependencies only if needed
-4. Follow `#N:` commit and `N-` branch naming
