@@ -19,6 +19,10 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 - Errors → stderr, success → stdout
 - Entry point: `main() -> int` + `raise SystemExit(main())`
 - Explicit exception handling (`HTTPError`, `URLError`, `ValueError`, `JSONDecodeError`)
+- Exception flow: business functions raise, they never catch-and-print. Only `main()` catches.
+  - User-facing failures: wrap low-level exceptions in a domain exception (e.g. `ProjectCreationError`) with a user-readable message; use `raise ... from exc` to keep the chain.
+  - `main()` runs the whole pipeline in one `try`, catches the general `Exception`, prints `Error: {exc}` to stderr, and returns 1.
+  - Functions never return `None` to signal failure — raise instead, so callers don't `is None`-check.
 - Module-level constants: `RELEASES_URL`, `DEFAULT_TIMEOUT`, `USER_AGENT`
 - ruff is the project linter/formatter — always run `uv run ruff check --fix` and `uv run ruff format` after changes; implementation must pass both cleanly before finishing a task
 - pyright is the type checker (strict mode, config in `pyrightconfig.json`) — always run `uv run pyright --warnings` after changes; must pass cleanly before finishing a task
@@ -70,15 +74,17 @@ Same, for Gradle (gradle/gradle releases).
 - copies `App.kt` into the `<package_name>` dirs, replaces `{{PACKAGE_NAME}}` (default `com.example`)
 - replaces `{{KOTLIN_VERSION}}` in `build.gradle.kts` with the fetched `kotlin_version`
 
-`main()` flow:
+`main()` flow — the whole pipeline runs in one `try`; any `Exception` is
+printed as `Error: <message>` to stderr and `main` returns 1:
 
 - `_parse_args` (CLI)
 - resolves name/package from CLI or stdin via `_resolve_project_name` / `_resolve_package_name` (prompting via `_prompt_value`, default `com.example`)
-- `_fetch_gradle_version` (errors → `None`)
-- `_fetch_kotlin_version` (errors → `None`)
+- `_fetch_gradle_version` / `_fetch_kotlin_version` (fetch failures are wrapped in `ProjectCreationError`)
 - packs into the `ProjectArgs` dataclass via `_build_project_args`
-- creates via `_create_project_or_none(project_args)` (errors → `None`)
+- `create_project(project_args)` (a failed `gradle` command is wrapped in `ProjectCreationError`)
 - prints the created path via `_print_created_path`
+
+`ProjectCreationError(Exception)` — the single domain exception; `str(exc)` is the user-facing error message.
 
 ## Rules
 
