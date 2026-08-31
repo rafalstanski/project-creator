@@ -58,10 +58,11 @@ Result is cached in `java_versions.json`; a cache miss downloads the matching
 
 Main module to create project scaffold. General flow:
 
-1. validates name/package format
-2. checks the directory is free and creates `<projects_dir>/<name>/`
-3. initialize Gradle's files using external `gradle` CLI tool
-4. Populate project files from `templates` directory and create basic project folders like `src/main/kotlin`, `src/main/resources`. Replaces any placeholders with values like: `{{PACKAGE_NAME}}`.
+1. Validates name/package format
+2. Checks the directory is free and creates `<projects_dir>/<name>/`
+3. Initializes Gradle's files using external `gradle` CLI tool
+4. Creates basic project folders like `src/main/kotlin`
+5. Populate project files from `templates` directory replacing placeholders like: `{{PACKAGE_NAME}}`
 
 ## Rules
 
