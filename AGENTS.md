@@ -17,13 +17,11 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 - Google-style docstrings on all public functions
 - Type annotations everywhere
 - Errors → stderr, success → stdout
-- Entry point: `main() -> int` + `raise SystemExit(main())`
 - Explicit exception handling (`HTTPError`, `URLError`, `ValueError`, `JSONDecodeError`)
 - Exception flow: business functions raise, they never catch-and-print. Only `main()` catches.
   - User-facing failures: wrap low-level exceptions in a domain exception (e.g. `ProjectCreationError`) with a user-readable message; use `raise ... from exc` to keep the chain.
   - `main()` runs the whole pipeline in one `try`, catches the general `Exception`, prints `Error: {exc}` to stderr, and returns 1.
   - Functions never return `None` to signal failure — raise instead, so callers don't `is None`-check.
-- Module-level constants: `GRADLE_RELEASES_URL`, `KOTLIN_RELEASES_URL`, `JAVA_VERSIONS_FILE`, `KOTLIN_COMPILER_RELEASES_URL`, `DEFAULT_TIMEOUT`, `USER_AGENT`
 - ruff is the project linter/formatter — always run `uv run ruff check --fix` and `uv run ruff format` after changes; implementation must pass both cleanly before finishing a task
 - pyright is the type checker (strict mode, config in `pyrightconfig.json`) — always run `uv run pyright --warnings` after changes; must pass cleanly before finishing a task
 
@@ -34,7 +32,6 @@ uv run fetch_newest_versions.py kotlin   # → 2.4.10
 uv run fetch_newest_versions.py gradle   # → 9.7.1
 uv run supported_java_versions.py 2.4.10   # → proposed java version, then all supported ones
 uv run create_project.py myapp   # → projects/myapp/ (optional `package` arg, default `com.example`)
-uv run pyright --warnings        # → 0 errors, 0 warnings
 ```
 
 ## Directories
@@ -69,5 +66,9 @@ Main module to create project scaffold. General flow:
 ## Rules
 
 1. Update `AGENTS.md` after finishing each task (add to Modules, update any section if changes relate to it)
-2. Match existing code conventions (docstrings, types, error-handling pattern). Run subject `code-cleaner` for this task
+2. Match existing code conventions (docstrings, types, error-handling pattern).
 3. Stdlib recommended — external dependencies only if needed
+
+## Agent Delegation Rules
+
+- **Static code analysis**: Always launch `.opencode/agents/code-cleaner.md` (or `@code-cleaner`) for code static analysis (to run `ruff`, `pyright`).
