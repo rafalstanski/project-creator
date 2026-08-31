@@ -62,7 +62,7 @@ Main module to create project scaffold. General flow:
 2. Checks the directory is free and creates `<projects_dir>/<name>/`
 3. Initializes Gradle's files using external `gradle` CLI tool
 4. Creates basic project folders like `src/main/kotlin`
-5. Populate project files from `templates` directory replacing placeholders like: `{{PACKAGE_NAME}}`
+5. Populates project files from `templates` directory replacing placeholders like: `{{PACKAGE_NAME}}`
 
 ## Rules
 
