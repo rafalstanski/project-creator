@@ -86,11 +86,19 @@ def _save_mapping(kotlin_version: str, versions: tuple[str, ...]) -> None:
     JAVA_VERSIONS_FILE.write_text(json.dumps(mapping, indent=4, sort_keys=True) + "\n")
 
 
+def _is_windows() -> bool:
+    """Return whether the current platform is Windows."""
+    return sys.platform == "win32"
+
+
 def _download_compiler(kotlin_version: str, tmp_dir: Path, timeout: int) -> Path:
     """Download the Kotlin ``kotlin_version`` compiler and extract ``kotlinc``.
 
+    The platform-specific launcher is selected: ``kotlinc.bat`` on Windows,
+    the POSIX ``kotlinc`` script elsewhere (made executable).
+
     Returns:
-        The path of the extracted ``kotlinc`` launcher script.
+        The path of the extracted ``kotlinc`` launcher.
 
     Raises:
         urllib.error.HTTPError: if the download returns a non-2xx status.
@@ -107,10 +115,13 @@ def _download_compiler(kotlin_version: str, tmp_dir: Path, timeout: int) -> Path
         shutil.copyfileobj(response, zip_file)
     with zipfile.ZipFile(zip_path) as archive:
         archive.extractall(tmp_dir)
-    kotlin_exe = tmp_dir / "kotlinc" / "bin" / "kotlinc"
+    bin_dir = tmp_dir / "kotlinc" / "bin"
+    kotlin_exe_name = "kotlinc.bat" if _is_windows() else "kotlinc"
+    kotlin_exe = bin_dir / kotlin_exe_name
     if not kotlin_exe.is_file():
-        raise ValueError("compiler archive does not contain kotlinc/bin/kotlinc.")
-    kotlin_exe.chmod(0o755)
+        raise ValueError(f"compiler archive is missing kotlinc/bin/{kotlin_exe_name}.")
+    if not _is_windows():
+        kotlin_exe.chmod(0o755)
     return kotlin_exe
 
 

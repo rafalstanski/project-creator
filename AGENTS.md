@@ -69,5 +69,5 @@ Main module to create project scaffold. General flow:
 ## Rules
 
 1. Update `AGENTS.md` after finishing each task (add to Modules, update any section if changes relate to it)
-2. Match existing code conventions (docstrings, types, error-handling pattern). Rub subject code-cleaner for this task
+2. Match existing code conventions (docstrings, types, error-handling pattern). Run subject `code-cleaner` for this task
 3. Stdlib recommended — external dependencies only if needed
