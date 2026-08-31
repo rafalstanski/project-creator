@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from fetch_newest_versions import fetch_gradle_version, fetch_kotlin_version
+from supported_java_versions import JavaVersionInfo, get_java_versions
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 PROJECTS_DIR = Path(__file__).resolve().parent / "projects"
@@ -16,6 +17,8 @@ TEMPLATE_FILES = ("build.gradle.kts",)
 DEFAULT_PACKAGE_NAME = "com.example"
 PACKAGE_NAME_PLACEHOLDER = "{{PACKAGE_NAME}}"
 KOTLIN_VERSION_PLACEHOLDER = "{{KOTLIN_VERSION}}"
+JAVA_VERSION_PLACEHOLDER = "{{JAVA_VERSION}}"
+JAVA_VERSIONS_PLACEHOLDER = "{{JAVA_VERSIONS}}"
 PACKAGE_RE = re.compile(r"^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)*$")
 # Deliberately simplified: also accepts Kotlin hard keywords (``class``) and
 # all-underscore (``_``) segments, which the Kotlin compiler would reject.
@@ -35,6 +38,8 @@ class ProjectArgs:
     package_name: str
     gradle_version: str
     kotlin_version: str
+    java_version: str
+    supported_java_versions: tuple[str, ...]
 
 
 def _validate_project_inputs(name: str, package_name: str) -> None:
@@ -138,11 +143,13 @@ def _substitute_placeholders(
         content = content.replace(PACKAGE_NAME_PLACEHOLDER, project_args.package_name)
         file.write_text(content)
     build_file = project_directory / "build.gradle.kts"
-    build_file.write_text(
-        build_file.read_text().replace(
-            KOTLIN_VERSION_PLACEHOLDER, project_args.kotlin_version
-        )
+    content = build_file.read_text()
+    content = content.replace(KOTLIN_VERSION_PLACEHOLDER, project_args.kotlin_version)
+    content = content.replace(JAVA_VERSION_PLACEHOLDER, project_args.java_version)
+    content = content.replace(
+        JAVA_VERSIONS_PLACEHOLDER, ", ".join(project_args.supported_java_versions)
     )
+    build_file.write_text(content)
 
 
 def _populate_project_files(
@@ -266,20 +273,35 @@ def _resolve_package_name(cli_args: argparse.Namespace) -> str:
 
 
 def _build_project_args(
-    name: str, package_name: str, gradle_version: str, kotlin_version: str
+    name: str,
+    package_name: str,
+    gradle_version: str,
+    kotlin_version: str,
+    java_info: JavaVersionInfo,
 ) -> ProjectArgs:
     """Bundle the resolved inputs into a ``ProjectArgs``."""
-    return ProjectArgs(name, package_name, gradle_version, kotlin_version)
+    return ProjectArgs(
+        name,
+        package_name,
+        gradle_version,
+        kotlin_version,
+        java_info.proposed,
+        java_info.supported,
+    )
 
 
 def _resolve_project_args(cli_args: argparse.Namespace) -> ProjectArgs:
-    """Resolve the project name and package name, fetch the build-tool
-    versions, and bundle everything into a ``ProjectArgs``."""
+    """Resolve the project name and package name, fetch the Kotlin and Gradle
+    versions and the matching Java versions, and bundle everything into a
+    ``ProjectArgs``."""
     name = _resolve_project_name(cli_args)
     package_name = _resolve_package_name(cli_args)
     gradle_version = fetch_gradle_version()
     kotlin_version = fetch_kotlin_version()
-    return _build_project_args(name, package_name, gradle_version, kotlin_version)
+    java_info = get_java_versions(kotlin_version)
+    return _build_project_args(
+        name, package_name, gradle_version, kotlin_version, java_info
+    )
 
 
 def main() -> int:

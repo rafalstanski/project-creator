@@ -19,5 +19,6 @@ application {
 }
 
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain({{JAVA_VERSION}})
+    // Supported JVM versions: {{JAVA_VERSIONS}}
 }
