@@ -13,7 +13,7 @@ from supported_java_versions import JavaVersionInfo, get_java_versions
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 PROJECTS_DIR = Path(__file__).resolve().parent / "projects"
-TEMPLATE_FILES = ("build.gradle.kts",)
+TEMPLATE_FILES = ("build.gradle.kts", ".gitignore")
 DEFAULT_PACKAGE_NAME = "com.example"
 PACKAGE_NAME_PLACEHOLDER = "{{PACKAGE_NAME}}"
 KOTLIN_VERSION_PLACEHOLDER = "{{KOTLIN_VERSION}}"
