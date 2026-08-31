@@ -45,21 +45,10 @@ uv run pyright --warnings        # → 0 errors, 0 warnings
 
 ## Modules
 
-- `fetch_newest_versions.py` — Gradle + Kotlin version lookup
-- `supported_java_versions.py` — supported + proposed JVM versions for a given Kotlin version
-- `create_project.py` — Gradle + Kotlin scaffold generator
-
 ### `fetch_newest_versions.py`
 
 Fetches the newest stable Gradle and Kotlin versions from their GitHub releases
 (gradle/gradle, JetBrains/kotlin).
-
-- `fetch_gradle_version(timeout: int = DEFAULT_TIMEOUT) -> str` → e.g. `9.7.1`
-- `fetch_kotlin_version(timeout: int = DEFAULT_TIMEOUT) -> str` → e.g. `2.4.10`
-- `VersionFetchError(Exception)` — the module's domain exception; `str(exc)` is the user-facing error message
-- `main()` — positional `which` arg (`gradle`/`kotlin`) + optional `--timeout`; runs the whole pipeline in one `try`, prints the version to stdout; any `Exception` is printed as `Error: {exc}` to stderr and `main` returns 1
-
-Bricks: `_fetch_newest_version` (shared HTTP/JSON/tag-parsing engine, raises `HTTPError`/`URLError`/`ValueError`) → `_fetch_tool_version` (wraps them in `VersionFetchError`) → public `fetch_*` functions.
 
 ### `supported_java_versions.py`
 
@@ -68,36 +57,17 @@ Result is cached in `java_versions.json`; a cache miss downloads the matching
 `kotlin-compiler-<ver>.zip` from the Kotlin GitHub release and parses the compiler's
 "Supported versions:" error message produced by an invalid `-jvm-target` flag.
 
-- `get_java_versions(kotlin_version: str, timeout: int = DEFAULT_TIMEOUT) -> JavaVersionInfo` → the proposed JVM version plus all supported ones
-- `JavaVersionInfo` — dataclass: `proposed: str`, `supported: tuple[str, ...]`; the proposed version is the `java` one installed on `PATH` if supported, else the newest supported one, normalized to integer JVM toolchain form (`1.8` → `8`)
-- `JavaVersionLookupError(Exception)` — the module's domain exception; `str(exc)` is the user-facing error message
-- `main()` — positional `kotlin_version` arg + optional `--timeout`; prints the proposed version and then all supported versions comma-joined to stdout; any `Exception` is printed as `Error: {exc}` to stderr and `main` returns 1
-
-Bricks: `_load_mapping` / `_save_mapping` (read/write the mapping file; unreadable/corrupt content raises `ValueError`) → `_download_compiler` (download + extract `kotlinc`) + `_query_supported_versions` (parse the compiler output, raises `ValueError`) + `_download_supported_versions` (cache-miss path: download, query, save) → `_detect_installed_java` (`java -version`, returns `None` if unavailable/unparsable) + `_propose_version` (normalizes legacy `1.X` targets to integer toolchain form); `_download_supported_versions` failures are wrapped in `JavaVersionLookupError` by `get_java_versions`.
-
 ### `create_project.py`
 
-`create_project(project_args: ProjectArgs, templates_dir, projects_dir) -> Path`
+Main module to create project scaffold. General flow:
 
-Runs four lego bricks in order:
-
-1. `_validate_project_inputs` — validates name/package format
-2. `_create_project_directory` — checks the directory is free and creates `<projects_dir>/<name>/`
-3. `_initialize_gradle` — `_require_gradle_executable`, `_run_gradle_init` (`gradle init --type basic --dsl kotlin --project-name <name> --no-incubating` + `gradle wrapper --gradle-version <gradle_version>`), `_strip_generated_comments` (from `settings.gradle.kts` + `gradle.properties`)
-4. `_populate_project_files` — `_copy_template_files` (copies `build.gradle.kts` into project root, creates `src/main/kotlin` + `src/main/resources`, copies `App.kt` into the `<package_name>` dirs) + `_substitute_placeholders` (replaces `{{PACKAGE_NAME}}`, default `com.example`, `{{KOTLIN_VERSION}}` with the fetched `kotlin_version`, `{{JAVA_VERSION}}` with the proposed java version, and `{{JAVA_VERSIONS}}` with the comma-joined supported java versions list)
-
-`main()` flow — the whole pipeline runs in one `try`; any `Exception` is
-printed as `Error: <message>` to stderr and `main` returns 1:
-
-- `_parse_args` (CLI)
-- `_resolve_project_args` — resolves name/package from CLI or stdin via `_resolve_project_name` / `_resolve_package_name` (prompting via `_prompt_value`, default `com.example`), fetches the Gradle/Kotlin versions directly from `fetch_newest_versions` and the matching Java versions from `supported_java_versions` (`VersionFetchError` / `JavaVersionLookupError` are caught by `main`), and packs everything into the `ProjectArgs` dataclass via `_build_project_args`
-- `create_project(project_args)` (a failed `gradle` command or a file copy/read/write failure is wrapped in `ProjectCreationError`)
-- prints the created path via `_print_created_path`
-
-`ProjectCreationError(Exception)` — the single domain exception; `str(exc)` is the user-facing error message.
+1. validates name/package format
+2. checks the directory is free and creates `<projects_dir>/<name>/`
+3. initialize Gradle's files using external `gradle` CLI tool
+4. Populate project files from `templates` directory and create basic project folders like `src/main/kotlin`, `src/main/resources`. Replaces any placeholders with values like: `{{PACKAGE_NAME}}`.
 
 ## Rules
 
 1. Update `AGENTS.md` after finishing each task (add to Modules, update any section if changes relate to it)
-2. Match existing code conventions (docstrings, types, error-handling pattern)
+2. Match existing code conventions (docstrings, types, error-handling pattern). Rub subject code-cleaner for this task
 3. Stdlib recommended — external dependencies only if needed
