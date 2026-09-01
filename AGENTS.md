@@ -28,17 +28,16 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 ## Run
 
 ```bash
-uv run fetch_newest_versions.py kotlin   # → 2.4.10
-uv run fetch_newest_versions.py gradle   # → 9.7.1
-uv run supported_java_versions.py 2.4.10   # → proposed java version, then all supported ones
-uv run create_project.py myapp   # → projects/myapp/ (optional `package` arg, default `com.example`)
+uv run fetch_newest_versions.py kotlin
+uv run fetch_newest_versions.py gradle
+uv run supported_java_versions.py 2.4.10
+uv run create_project.py myapp com.sample.package  # (pacakge is optional, default `com.example`)
 ```
 
 ## Directories
 
 - `templates/` — source template files copied into new projects.
 - `projects/` — generated project directories (created at runtime).
-- `java_versions.json` — kotlin-version → java-versions mapping cache (created at runtime, kept in the repo).
 
 ## Modules
 
@@ -59,10 +58,11 @@ Result is cached in `java_versions.json`; a cache miss downloads the matching
 Main module to create project scaffold. General flow:
 
 1. Validates name/package format
-2. Checks the directory is free and creates `<projects_dir>/<name>/`
-3. Initializes Gradle's files using external `gradle` CLI tool
-4. Creates basic project folders like `src/main/kotlin`
-5. Populates project files from `templates` directory replacing placeholders like: `{{PACKAGE_NAME}}`
+2. Fetching gradle/kotlin/java the newest versions
+3. Checks the directory is free and creates `<projects_dir>/<name>/`
+4. Setup Gradle's files using external `gradle` CLI tool
+5. Creates basic project folders e.g.: `src/main/kotlin`
+6. Populates project files from `templates` directory replacing placeholders e.g.: `{{PACKAGE_NAME}}`
 
 ## Rules
 
