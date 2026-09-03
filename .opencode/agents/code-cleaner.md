@@ -8,3 +8,4 @@ permission:
 ---
 
 You are responsible to invoke static code analysis tools and fix any unalignment.
+DON'T read files before executing tools for static code analysis.
