@@ -258,16 +258,14 @@ def _relative_to_cwd(path: Path) -> Path:
         return path
 
 
-def _print_project_summary(project_args: ProjectArgs) -> None:
-    """Print a summary of what will be created: name, package, location."""
-    _log(f"Project: {project_args.name}")
-    _log(f"Package: {project_args.package_name}")
-    _log(f"Location: {_relative_to_cwd(PROJECTS_DIR / project_args.name)}")
+def _log_project_creation(name: str, package_name: str) -> None:
+    """Print the opening line announcing the project about to be created."""
+    _log(f"Creating project {name} (package {package_name}) ...")
 
 
 def _print_created_path(project_directory: Path) -> int:
-    """Print ``project_directory`` relative to cwd (falling back to absolute)."""
-    print(_relative_to_cwd(project_directory))
+    """Print the final success line with ``project_directory`` relative to cwd."""
+    print(f"Project created: {_relative_to_cwd(project_directory)}")
     return 0
 
 
@@ -324,9 +322,11 @@ def _resolve_project_args(cli_args: argparse.Namespace) -> ProjectArgs:
     versions and the matching Java versions, and bundle everything into a
     ``ProjectArgs``.
 
-    Prints a progress message before and after each of the version lookups."""
+    Prints the opening line announcing the project, then a progress message
+    before and after each of the version lookups."""
     name = _resolve_project_name(cli_args)
     package_name = _resolve_package_name(cli_args)
+    _log_project_creation(name, package_name)
     _log("Fetching newest Gradle version...")
     gradle_version = fetch_gradle_version()
     _log(f"Gradle version: {gradle_version}")
@@ -344,13 +344,14 @@ def _resolve_project_args(cli_args: argparse.Namespace) -> ProjectArgs:
 
 def main() -> int:
     """Parse arguments, resolve the project inputs, create the project,
-    and print the created path.
+    and print the final success line.
 
-    Prints a summary of what will be created before the creation starts.
-    Progress messages around each main step are printed by the steps
-    themselves. Prompts for the project name or the package name if they are
-    not provided via the CLI; the package defaults to ``DEFAULT_PACKAGE_NAME``
-    when the prompt answer is empty.
+    The opening line announcing the project is printed right after the
+    inputs are collected, before any progress output. Progress messages
+    around each main step are printed by the steps themselves. Prompts for
+    the project name or the package name if they are not provided via the
+    CLI; the package defaults to ``DEFAULT_PACKAGE_NAME`` when the prompt
+    answer is empty.
 
     Returns:
         0 on success, 1 on any error.
@@ -358,7 +359,6 @@ def main() -> int:
     try:
         cli_args = _parse_args()
         project_args = _resolve_project_args(cli_args)
-        _print_project_summary(project_args)
         project_directory = create_project(project_args)
         return _print_created_path(project_directory)
     except Exception as exc:
