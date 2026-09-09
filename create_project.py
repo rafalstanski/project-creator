@@ -42,6 +42,11 @@ class ProjectArgs:
     supported_java_versions: tuple[str, ...]
 
 
+def _log(message: str) -> None:
+    """Print an informational progress message to stdout."""
+    print(message)
+
+
 def _validate_project_inputs(name: str, package_name: str) -> None:
     """Validate project name and package name format."""
     if not name:
@@ -65,10 +70,13 @@ def _require_gradle_executable() -> None:
 def _run_gradle_init(project_directory: Path, name: str, gradle_version: str) -> None:
     """Run ``gradle init`` and ``gradle wrapper`` in ``project_directory``.
 
+    Prints a progress message before each command.
+
     Raises:
         ProjectCreationError: if a ``gradle`` command fails.
     """
     try:
+        _log("Running 'gradle init' ...")
         subprocess.run(
             [
                 "gradle",
@@ -86,6 +94,7 @@ def _run_gradle_init(project_directory: Path, name: str, gradle_version: str) ->
             capture_output=True,
             text=True,
         )
+        _log("Running 'gradle wrapper' ...")
         subprocess.run(
             ["gradle", "wrapper", "--gradle-version", gradle_version],
             cwd=project_directory,
@@ -157,10 +166,13 @@ def _populate_project_files(
 ) -> None:
     """Copy template files and substitute placeholders in ``project_directory``.
 
+    Prints a progress message before and after the work.
+
     Raises:
         ProjectCreationError: if a template file cannot be copied or a project
             file cannot be read or written.
     """
+    _log("Populating project files from templates ...")
     try:
         _copy_template_files(
             project_directory, templates_dir, project_args.package_name
@@ -168,6 +180,7 @@ def _populate_project_files(
         _substitute_placeholders(project_directory, project_args)
     except OSError as exc:
         raise ProjectCreationError(f"could not populate project files: {exc}") from exc
+    _log("Project files populated.")
 
 
 def _create_project_directory(project_args: ProjectArgs, projects_dir: Path) -> Path:
@@ -194,6 +207,7 @@ def _initialize_gradle(project_args: ProjectArgs, project_directory: Path) -> No
     _require_gradle_executable()
     _run_gradle_init(project_directory, project_args.name, project_args.gradle_version)
     _strip_generated_comments(project_directory)
+    _log("gradle init and wrapper completed.")
 
 
 def create_project(
@@ -202,6 +216,8 @@ def create_project(
     projects_dir: Path = PROJECTS_DIR,
 ) -> Path:
     """Create ``<projects_dir>/<name>`` and populate it from the template files.
+
+    Prints a progress message after the project directory is created.
 
     Args:
         project_args: resolved inputs describing the project to create.
@@ -220,6 +236,7 @@ def create_project(
     """
     _validate_project_inputs(project_args.name, project_args.package_name)
     project_directory = _create_project_directory(project_args, projects_dir)
+    _log(f"Project directory created: {_relative_to_cwd(project_directory)}")
     _initialize_gradle(project_args, project_directory)
     _populate_project_files(project_directory, templates_dir, project_args)
     return project_directory
@@ -233,12 +250,22 @@ def _prompt_value(prompt: str, label: str) -> str:
         raise ProjectCreationError(f"no {label} provided.") from exc
 
 
-def _print_created_path(project_directory: Path) -> int:
-    """Print ``project_directory`` relative to cwd (falling back to absolute)."""
+def _relative_to_cwd(path: Path) -> Path:
+    """Return ``path`` relative to cwd, falling back to the absolute path."""
     try:
-        print(project_directory.relative_to(Path.cwd()))
+        return path.relative_to(Path.cwd())
     except ValueError:
-        print(project_directory)
+        return path
+
+
+def _log_project_creation(name: str, package_name: str) -> None:
+    """Print the opening line announcing the project about to be created."""
+    _log(f"Creating project {name} (package {package_name}) ...")
+
+
+def _print_created_path(project_directory: Path) -> int:
+    """Print the final success line with ``project_directory`` relative to cwd."""
+    print(f"Project created: {_relative_to_cwd(project_directory)}")
     return 0
 
 
@@ -293,12 +320,28 @@ def _build_project_args(
 def _resolve_project_args(cli_args: argparse.Namespace) -> ProjectArgs:
     """Resolve the project name and package name, fetch the Kotlin and Gradle
     versions and the matching Java versions, and bundle everything into a
-    ``ProjectArgs``."""
+    ``ProjectArgs``.
+
+    Prints the opening line announcing the project, then a progress message
+    before and after each of the version lookups.
+
+    Raises:
+        ValueError: if ``name`` or ``package_name`` is invalid.
+    """
     name = _resolve_project_name(cli_args)
     package_name = _resolve_package_name(cli_args)
+    _validate_project_inputs(name, package_name)
+    _log_project_creation(name, package_name)
+    _log("Fetching newest Gradle version...")
     gradle_version = fetch_gradle_version()
+    _log(f"Gradle version: {gradle_version}")
+    _log("Fetching newest Kotlin version...")
     kotlin_version = fetch_kotlin_version()
+    _log(f"Kotlin version: {kotlin_version}")
+    _log(f"Looking up Java versions for Kotlin {kotlin_version}...")
     java_info = get_java_versions(kotlin_version)
+    supported = ", ".join(java_info.supported)
+    _log(f"Java version: {java_info.proposed} (supported: {supported})")
     return _build_project_args(
         name, package_name, gradle_version, kotlin_version, java_info
     )
@@ -306,11 +349,14 @@ def _resolve_project_args(cli_args: argparse.Namespace) -> ProjectArgs:
 
 def main() -> int:
     """Parse arguments, resolve the project inputs, create the project,
-    and print the created path.
+    and print the final success line.
 
-    Prompts for the project name or the package name if they are not provided
-    via the CLI; the package defaults to ``DEFAULT_PACKAGE_NAME`` when the
-    prompt answer is empty.
+    The opening line announcing the project is printed right after the
+    inputs are collected, before any progress output. Progress messages
+    around each main step are printed by the steps themselves. Prompts for
+    the project name or the package name if they are not provided via the
+    CLI; the package defaults to ``DEFAULT_PACKAGE_NAME`` when the prompt
+    answer is empty.
 
     Returns:
         0 on success, 1 on any error.
