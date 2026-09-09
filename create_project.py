@@ -323,9 +323,14 @@ def _resolve_project_args(cli_args: argparse.Namespace) -> ProjectArgs:
     ``ProjectArgs``.
 
     Prints the opening line announcing the project, then a progress message
-    before and after each of the version lookups."""
+    before and after each of the version lookups.
+
+    Raises:
+        ValueError: if ``name`` or ``package_name`` is invalid.
+    """
     name = _resolve_project_name(cli_args)
     package_name = _resolve_package_name(cli_args)
+    _validate_project_inputs(name, package_name)
     _log_project_creation(name, package_name)
     _log("Fetching newest Gradle version...")
     gradle_version = fetch_gradle_version()
