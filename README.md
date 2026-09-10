@@ -23,7 +23,7 @@ To create a project, run:
 uv run create_project.py
 ```
 
-It will prompt you for the project name and package name. You can also provide them as parameters:
+It will prompt you for the project name and package name. You can also pass them directly as arguments:
 ```shell
 uv run create_project.py myapp com.sample.package
 ```
