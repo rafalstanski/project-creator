@@ -11,6 +11,12 @@ Often, I want to create a simple project — for example, to build a prototype o
 **Hidden Agenda:**  
 I wanted a practical project to experiment with local LLMs. This project is created using `opencode` driven by `Qwen 3.8 27B`. Developed using techniques like Prompt Engineering and Incremental Prompting; small, iterative steps.
 
+## Prerequisites
+
+- `gradle` CLI (>= 8.2) on your `PATH` — `create_project.py` uses `gradle` to init Gradle related files.
+- `uv` — scripts are run with `uv run`.
+- Python 3.14 — pinned via `.python-version`.
+
 ## How to use?
 To create a project, run:
 ```shell
