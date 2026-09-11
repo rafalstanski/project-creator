@@ -8,11 +8,12 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from fetch_newest_versions import fetch_gradle_version, fetch_kotlin_version
-from supported_java_versions import get_java_versions
+from project_creator.fetch_versions import fetch_gradle_version, fetch_kotlin_version
+from project_creator.java_versions import get_java_versions
 
-TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
-PROJECTS_DIR = Path(__file__).resolve().parent / "projects"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+TEMPLATES_DIR = PROJECT_ROOT / "templates"
+PROJECTS_DIR = PROJECT_ROOT / "projects"
 TEMPLATE_FILES = ("build.gradle.kts", ".gitignore")
 DEFAULT_PACKAGE_NAME = "com.example"
 PACKAGE_NAME_PLACEHOLDER = "{{PACKAGE_NAME}}"

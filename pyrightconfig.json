@@ -1,5 +1,5 @@
 {
-    "include": ["*.py"],
+    "include": ["project_creator/**/*.py"],
     "exclude": ["projects"],
     "pythonVersion": "3.14",
     "venvPath": ".",

@@ -8,9 +8,9 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 ## Stack
 
 - Python 3.14 (pyenv, pinned via `.python-version`) — **stdlib recommended**; external dependencies only if needed
-- `uv` manages the environment (`.venv/`); run scripts with `uv run`
-- A local `gradle` CLI (>= 8.2) must be on `PATH` for `create_project.py`; the minimum is required by the `gradle init --no-incubating` command
-- No build system, no test framework, no CI
+- `uv` manages the environment (`.venv/`); run the tool with `uv run project-creator` or `./run.sh`
+- A local `gradle` CLI (>= 8.2) must be on `PATH`; the minimum is required by the `gradle init --no-incubating` command
+- No test framework, no CI; a build system (hatchling) exists only to provide the `project-creator` console script
 
 ## Conventions
 
@@ -29,34 +29,38 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 ## Run
 
 ```bash
-uv run fetch_newest_versions.py kotlin
-uv run fetch_newest_versions.py gradle
-uv run supported_java_versions.py 2.4.10
-uv run create_project.py myapp com.sample.package  # (package is optional, default `com.example`)
+uv run -m project_creator.fetch_versions kotlin
+uv run -m project_creator.fetch_versions gradle
+uv run -m project_creator.java_versions 2.4.10
+./run.sh myapp com.sample.package  # (package is optional, default `com.example`; also: uv run project-creator)
 ```
 
 ## Directories
 
+- `project_creator/` — the Python package (`create`, `fetch_versions`, `java_versions` modules; `__main__` for `python -m project_creator`).
 - `templates/` — source template files copied into new projects.
 - `projects/` — generated project directories (created at runtime).
+- `.cache/` — runtime cache (`java_versions.json`); gitignored.
 
 ## Modules
 
-### `fetch_newest_versions.py`
+All modules live in the `project_creator/` package.
+
+### `project_creator/fetch_versions.py`
 
 Fetches the newest stable Gradle and Kotlin versions from their GitHub releases
 (gradle/gradle, JetBrains/kotlin).
 
-### `supported_java_versions.py`
+### `project_creator/java_versions.py`
 
 Looks up the JVM versions for a given Kotlin version (provided by the caller, never fetched).
-Result is cached in `java_versions.json`; a cache miss downloads the matching
+Result is cached in `.cache/java_versions.json`; a cache miss downloads the matching
 `kotlin-compiler-<ver>.zip` from the Kotlin GitHub release and parses the compiler's
 "Supported versions:" error message produced by an invalid `-jvm-target` flag.
 
-### `create_project.py`
+### `project_creator/create.py`
 
-Main module to create project scaffold. General flow:
+Main module to create project scaffold; exposes the `project-creator` console script. General flow:
 
 1. Validates name/package format
 2. Fetches the newest Gradle/Kotlin/Java versions
