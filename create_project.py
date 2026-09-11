@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from fetch_newest_versions import fetch_gradle_version, fetch_kotlin_version
-from supported_java_versions import JavaVersionInfo, get_java_versions
+from supported_java_versions import get_java_versions
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 PROJECTS_DIR = Path(__file__).resolve().parent / "projects"
@@ -31,30 +31,26 @@ class ProjectCreationError(Exception):
 
 
 @dataclass
-class ProjectArgs:
-    """Resolved inputs describing the project to create."""
+class ResolvedVersions:
+    """The fetched toolchain versions used to build a project."""
 
-    name: str
-    package_name: str
     gradle_version: str
     kotlin_version: str
     java_version: str
     supported_java_versions: tuple[str, ...]
 
 
-def create_project(
-    project_args: ProjectArgs,
-    templates_dir: Path = TEMPLATES_DIR,
-    projects_dir: Path = PROJECTS_DIR,
-) -> Path:
-    """Create ``<projects_dir>/<name>`` and populate it from the template files.
+def create_project(name: str, package_name: str | None = None) -> Path:
+    """Create ``<PROJECTS_DIR>/<name>``: resolve versions, then build it.
 
-    Prints a progress message after the project directory is created.
+    Resolves the project inputs (validating the name/package), fetches the
+    newest Gradle/Kotlin/Java versions, and builds the project directory
+    from the template files.
 
     Args:
-        project_args: resolved inputs describing the project to create.
-        templates_dir: directory containing the template files.
-        projects_dir: directory under which the project is created.
+        name: the project (directory) name.
+        package_name: the dotted Kotlin package name; defaults to
+            ``DEFAULT_PACKAGE_NAME`` when ``None`` or empty.
 
     Returns:
         The path of the created project directory.
@@ -63,15 +59,23 @@ def create_project(
         ValueError: if ``name`` or ``package_name`` is invalid.
         FileExistsError: if the project directory already exists.
         FileNotFoundError: if the ``gradle`` executable is not on ``PATH``.
-        ProjectCreationError: if a ``gradle`` command fails, or if the template
-            files cannot be copied or the project files read or written.
+        ProjectCreationError: if a ``gradle`` command fails, or if the
+            template files cannot be copied or the project files read/written.
+        VersionFetchError: if the Gradle or Kotlin version cannot be fetched.
+        JavaVersionLookupError: if the Java versions cannot be determined.
     """
-    _validate_project_inputs(project_args.name, project_args.package_name)
-    project_directory = _create_project_directory(project_args, projects_dir)
-    _log(f"Project directory created: {_relative_to_cwd(project_directory)}")
-    _initialize_gradle(project_args, project_directory)
-    _populate_project_files(project_directory, templates_dir, project_args)
-    return project_directory
+    package_name = _default_package_name(package_name)
+    _validate_project_inputs(name, package_name)
+    _log_project_creation(name, package_name)
+    versions = _resolve_versions()
+    return _build_project(name, package_name, versions, TEMPLATES_DIR, PROJECTS_DIR)
+
+
+def _default_package_name(package_name: str | None) -> str:
+    """Return ``package_name``, or ``DEFAULT_PACKAGE_NAME`` if ``None`` or empty."""
+    if not package_name:
+        return DEFAULT_PACKAGE_NAME
+    return package_name
 
 
 def _validate_project_inputs(name: str, package_name: str) -> None:
@@ -84,20 +88,56 @@ def _validate_project_inputs(name: str, package_name: str) -> None:
         raise ValueError(f"Invalid package name: {package_name!r}")
 
 
-def _create_project_directory(project_args: ProjectArgs, projects_dir: Path) -> Path:
+def _build_project(
+    name: str,
+    package_name: str,
+    versions: ResolvedVersions,
+    templates_dir: Path,
+    projects_dir: Path,
+) -> Path:
+    """Create ``<projects_dir>/<name>`` and populate it from the template files.
+
+    Assumes the inputs and versions are already resolved and validated.
+
+    Args:
+        name: the project (directory) name.
+        package_name: the dotted Kotlin package name.
+        versions: the resolved toolchain versions.
+        templates_dir: directory containing the template files.
+        projects_dir: directory under which the project is created.
+
+    Returns:
+        The path of the created project directory.
+
+    Raises:
+        FileExistsError: if the project directory already exists.
+        FileNotFoundError: if the ``gradle`` executable is not on ``PATH``.
+        ProjectCreationError: if a ``gradle`` command fails, or if the
+            template files cannot be copied or the project files read/written.
+    """
+    project_directory = _create_project_directory(name, projects_dir)
+    _log(f"Project directory created: {_relative_to_cwd(project_directory)}")
+    _initialize_gradle(project_directory, name, versions)
+    _populate_project_files(project_directory, templates_dir, package_name, versions)
+    return project_directory
+
+
+def _create_project_directory(name: str, projects_dir: Path) -> Path:
     """Create the project directory under ``projects_dir``.
 
     Raises:
         FileExistsError: if the project directory already exists.
     """
-    project_directory = projects_dir / project_args.name
+    project_directory = projects_dir / name
     if project_directory.exists():
         raise FileExistsError(f"Project directory already exists: {project_directory}")
     project_directory.mkdir(parents=True)
     return project_directory
 
 
-def _initialize_gradle(project_args: ProjectArgs, project_directory: Path) -> None:
+def _initialize_gradle(
+    project_directory: Path, name: str, versions: ResolvedVersions
+) -> None:
     """Initialize Gradle in the project: check the CLI, run ``gradle init``,
     then strip the generated comments from the Gradle build files.
 
@@ -106,7 +146,7 @@ def _initialize_gradle(project_args: ProjectArgs, project_directory: Path) -> No
         ProjectCreationError: if a ``gradle`` command fails.
     """
     _require_gradle_executable()
-    _run_gradle_init(project_directory, project_args.name, project_args.gradle_version)
+    _run_gradle_init(project_directory, name, versions.gradle_version)
     _strip_generated_comments(project_directory)
     _log("gradle init and wrapper completed.")
 
@@ -178,7 +218,10 @@ def _strip_generated_comments(project_directory: Path) -> None:
 
 
 def _populate_project_files(
-    project_directory: Path, templates_dir: Path, project_args: ProjectArgs
+    project_directory: Path,
+    templates_dir: Path,
+    package_name: str,
+    versions: ResolvedVersions,
 ) -> None:
     """Copy template files and substitute placeholders in ``project_directory``.
 
@@ -190,10 +233,8 @@ def _populate_project_files(
     """
     _log("Populating project files from templates ...")
     try:
-        _copy_template_files(
-            project_directory, templates_dir, project_args.package_name
-        )
-        _substitute_placeholders(project_directory, project_args)
+        _copy_template_files(project_directory, templates_dir, package_name)
+        _substitute_placeholders(project_directory, package_name, versions)
     except OSError as exc:
         raise ProjectCreationError(f"could not populate project files: {exc}") from exc
     _log("Project files populated.")
@@ -218,21 +259,20 @@ def _copy_template_files(
 
 
 def _substitute_placeholders(
-    project_directory: Path, project_args: ProjectArgs
+    project_directory: Path, package_name: str, versions: ResolvedVersions
 ) -> None:
     """Replace the template placeholders in the created project files."""
-    package_dirs = project_args.package_name.split(".")
-    package_dir = project_directory / KOTLIN_SRC_DIR.joinpath(*package_dirs)
+    package_dir = project_directory / KOTLIN_SRC_DIR.joinpath(*package_name.split("."))
     for file in (project_directory / "build.gradle.kts", package_dir / "App.kt"):
         content = file.read_text()
-        content = content.replace(PACKAGE_NAME_PLACEHOLDER, project_args.package_name)
+        content = content.replace(PACKAGE_NAME_PLACEHOLDER, package_name)
         file.write_text(content)
     build_file = project_directory / "build.gradle.kts"
     content = build_file.read_text()
-    content = content.replace(KOTLIN_VERSION_PLACEHOLDER, project_args.kotlin_version)
-    content = content.replace(JAVA_VERSION_PLACEHOLDER, project_args.java_version)
+    content = content.replace(KOTLIN_VERSION_PLACEHOLDER, versions.kotlin_version)
+    content = content.replace(JAVA_VERSION_PLACEHOLDER, versions.java_version)
     content = content.replace(
-        JAVA_VERSIONS_PLACEHOLDER, ", ".join(project_args.supported_java_versions)
+        JAVA_VERSIONS_PLACEHOLDER, ", ".join(versions.supported_java_versions)
     )
     build_file.write_text(content)
 
@@ -283,39 +323,15 @@ def _resolve_package_name(cli_args: argparse.Namespace) -> str:
     return package
 
 
-def _build_project_args(
-    name: str,
-    package_name: str,
-    gradle_version: str,
-    kotlin_version: str,
-    java_info: JavaVersionInfo,
-) -> ProjectArgs:
-    """Bundle the resolved inputs into a ``ProjectArgs``."""
-    return ProjectArgs(
-        name,
-        package_name,
-        gradle_version,
-        kotlin_version,
-        java_info.proposed,
-        java_info.supported,
-    )
+def _resolve_versions() -> ResolvedVersions:
+    """Fetch the newest Gradle/Kotlin versions and the matching Java versions.
 
-
-def _resolve_project_args(cli_args: argparse.Namespace) -> ProjectArgs:
-    """Resolve the project name and package name, fetch the Kotlin and Gradle
-    versions and the matching Java versions, and bundle everything into a
-    ``ProjectArgs``.
-
-    Prints the opening line announcing the project, then a progress message
-    before and after each of the version lookups.
+    Prints a progress message before and after each of the version lookups.
 
     Raises:
-        ValueError: if ``name`` or ``package_name`` is invalid.
+        VersionFetchError: if the Gradle or Kotlin version cannot be fetched.
+        JavaVersionLookupError: if the Java versions cannot be determined.
     """
-    name = _resolve_project_name(cli_args)
-    package_name = _resolve_package_name(cli_args)
-    _validate_project_inputs(name, package_name)
-    _log_project_creation(name, package_name)
     _log("Fetching newest Gradle version...")
     gradle_version = fetch_gradle_version()
     _log(f"Gradle version: {gradle_version}")
@@ -324,10 +340,15 @@ def _resolve_project_args(cli_args: argparse.Namespace) -> ProjectArgs:
     _log(f"Kotlin version: {kotlin_version}")
     _log(f"Looking up Java versions for Kotlin {kotlin_version}...")
     java_info = get_java_versions(kotlin_version)
-    supported = ", ".join(java_info.supported)
-    _log(f"Java version: {java_info.proposed} (supported: {supported})")
-    return _build_project_args(
-        name, package_name, gradle_version, kotlin_version, java_info
+    _log(
+        f"Java version: {java_info.proposed}"
+        f" (supported: {', '.join(java_info.supported)})"
+    )
+    return ResolvedVersions(
+        gradle_version=gradle_version,
+        kotlin_version=kotlin_version,
+        java_version=java_info.proposed,
+        supported_java_versions=java_info.supported,
     )
 
 
@@ -348,23 +369,21 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
-    """Parse arguments, resolve the project inputs, create the project,
+    """Parse arguments, prompt for any missing inputs, create the project,
     and print the final success line.
 
-    The opening line announcing the project is printed right after the
-    inputs are collected, before any progress output. Progress messages
-    around each main step are printed by the steps themselves. Prompts for
-    the project name or the package name if they are not provided via the
-    CLI; the package defaults to ``DEFAULT_PACKAGE_NAME`` when the prompt
-    answer is empty.
+    Prompts for the project name or the package name if they are not
+    provided via the CLI; the package defaults to ``DEFAULT_PACKAGE_NAME``
+    when the prompt answer is empty.
 
     Returns:
         0 on success, 1 on any error.
     """
     try:
         cli_args = _parse_args()
-        project_args = _resolve_project_args(cli_args)
-        project_directory = create_project(project_args)
+        name = _resolve_project_name(cli_args)
+        package_name = _resolve_package_name(cli_args)
+        project_directory = create_project(name, package_name)
         return _print_created_path(project_directory)
     except Exception as exc:
         print(f"Error: {exc}", file=sys.stderr)
