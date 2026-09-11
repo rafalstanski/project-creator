@@ -89,6 +89,40 @@ def _validate_project_inputs(name: str, package_name: str) -> None:
         raise ValueError(f"Invalid package name: {package_name!r}")
 
 
+def _log_project_creation(name: str, package_name: str) -> None:
+    """Print the opening line announcing the project about to be created."""
+    _log(f"Creating project {name} (package {package_name}) ...")
+
+
+def _resolve_versions() -> ResolvedVersions:
+    """Fetch the newest Gradle/Kotlin versions and the matching Java versions.
+
+    Prints a progress message before and after each of the version lookups.
+
+    Raises:
+        VersionFetchError: if the Gradle or Kotlin version cannot be fetched.
+        JavaVersionLookupError: if the Java versions cannot be determined.
+    """
+    _log("Fetching newest Gradle version...")
+    gradle_version = fetch_gradle_version()
+    _log(f"Gradle version: {gradle_version}")
+    _log("Fetching newest Kotlin version...")
+    kotlin_version = fetch_kotlin_version()
+    _log(f"Kotlin version: {kotlin_version}")
+    _log(f"Looking up Java versions for Kotlin {kotlin_version}...")
+    java_info = get_java_versions(kotlin_version)
+    _log(
+        f"Java version: {java_info.proposed}"
+        f" (supported: {', '.join(java_info.supported)})"
+    )
+    return ResolvedVersions(
+        gradle_version=gradle_version,
+        kotlin_version=kotlin_version,
+        java_version=java_info.proposed,
+        supported_java_versions=java_info.supported,
+    )
+
+
 def _build_project(
     name: str,
     package_name: str,
@@ -299,11 +333,6 @@ def _prompt_value(prompt: str, label: str) -> str:
         raise ProjectCreationError(f"no {label} provided.") from exc
 
 
-def _log_project_creation(name: str, package_name: str) -> None:
-    """Print the opening line announcing the project about to be created."""
-    _log(f"Creating project {name} (package {package_name}) ...")
-
-
 def _resolve_project_name(cli_args: argparse.Namespace) -> str:
     """Return the project name from the CLI, or read it from stdin."""
     if cli_args.name is None:
@@ -322,35 +351,6 @@ def _resolve_package_name(cli_args: argparse.Namespace) -> str:
     if not package:
         return DEFAULT_PACKAGE_NAME
     return package
-
-
-def _resolve_versions() -> ResolvedVersions:
-    """Fetch the newest Gradle/Kotlin versions and the matching Java versions.
-
-    Prints a progress message before and after each of the version lookups.
-
-    Raises:
-        VersionFetchError: if the Gradle or Kotlin version cannot be fetched.
-        JavaVersionLookupError: if the Java versions cannot be determined.
-    """
-    _log("Fetching newest Gradle version...")
-    gradle_version = fetch_gradle_version()
-    _log(f"Gradle version: {gradle_version}")
-    _log("Fetching newest Kotlin version...")
-    kotlin_version = fetch_kotlin_version()
-    _log(f"Kotlin version: {kotlin_version}")
-    _log(f"Looking up Java versions for Kotlin {kotlin_version}...")
-    java_info = get_java_versions(kotlin_version)
-    _log(
-        f"Java version: {java_info.proposed}"
-        f" (supported: {', '.join(java_info.supported)})"
-    )
-    return ResolvedVersions(
-        gradle_version=gradle_version,
-        kotlin_version=kotlin_version,
-        java_version=java_info.proposed,
-        supported_java_versions=java_info.supported,
-    )
 
 
 def _print_created_path(project_directory: Path) -> int:
