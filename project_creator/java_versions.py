@@ -166,9 +166,13 @@ def _valid_java_version(version: object) -> bool:
 
 
 def _save_mapping(kotlin_version: str, versions: tuple[str, ...]) -> None:
-    """Merge ``versions`` under ``kotlin_version`` into ``JAVA_VERSIONS_FILE``."""
+    """Merge ``versions`` under ``kotlin_version`` into ``JAVA_VERSIONS_FILE``.
+
+    The cache directory is created if it does not exist.
+    """
     mapping = _load_mapping()
     mapping[kotlin_version] = list(versions)
+    JAVA_VERSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
     JAVA_VERSIONS_FILE.write_text(json.dumps(mapping, indent=4, sort_keys=True) + "\n")
 
 
