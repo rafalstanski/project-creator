@@ -84,52 +84,6 @@ def get_java_versions(
         ) from exc
 
 
-def _detect_installed_java() -> str | None:
-    """Return the major version of the ``java`` executable on ``PATH``.
-
-    The version is normalized to compiler form (``21.0.11`` → ``"21"``,
-    ``1.8.0_412`` → ``"1.8"``).
-
-    Returns:
-        The normalized major version, or ``None`` if java is unavailable or
-        its version cannot be determined.
-    """
-    java_exe = shutil.which("java")
-    if java_exe is None:
-        return None
-    completed = subprocess.run(
-        [java_exe, "-version"], capture_output=True, text=True, check=False
-    )
-    if completed.returncode != 0:
-        return None
-    raw_output = f"{completed.stderr or ''}\n{completed.stdout or ''}"
-    match = JAVA_VERSION_TOKEN_RE.search(raw_output)
-    if match is None:
-        return None
-    parts = match.group(1).split(".")
-    major = parts[0]
-    if major == "1" and len(parts) > 1:
-        major = f"1.{parts[1]}"
-    if not JAVA_VERSION_RE.fullmatch(major):
-        return None
-    return major
-
-
-def _propose_version(installed: str | None, supported: tuple[str, ...]) -> str:
-    """Return ``installed`` if it is supported, else the newest supported one,
-    normalized to integer JVM toolchain form."""
-    if installed is not None and installed in supported:
-        return _to_toolchain_version(installed)
-    return _to_toolchain_version(max(supported, key=_version_key))
-
-
-def _to_toolchain_version(version: str) -> str:
-    """Return ``version`` as an integer JVM toolchain value (``"1.8"`` → ``"8"``)."""
-    if version.startswith("1."):
-        return version.removeprefix("1.")
-    return version
-
-
 def _load_mapping() -> dict[str, list[str]]:
     """Return the kotlin-version → java-versions mapping from ``JAVA_VERSIONS_FILE``.
 
@@ -163,23 +117,6 @@ def _load_mapping() -> dict[str, list[str]]:
 def _valid_java_version(version: object) -> bool:
     """Return whether ``version`` is a syntactically valid JVM version."""
     return type(version) is str and JAVA_VERSION_RE.fullmatch(version) is not None
-
-
-def _save_mapping(kotlin_version: str, versions: tuple[str, ...]) -> None:
-    """Merge ``versions`` under ``kotlin_version`` into ``JAVA_VERSIONS_FILE``.
-
-    The cache directory is created if it does not exist.
-    """
-    mapping = _load_mapping()
-    mapping[kotlin_version] = list(versions)
-    JAVA_VERSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    JAVA_VERSIONS_FILE.write_text(json.dumps(mapping, indent=4, sort_keys=True) + "\n")
-
-
-def _version_key(version: str) -> tuple[int, int]:
-    """Return the version as a two-part numeric tuple, e.g. ``"21"`` → ``(21, 0)``."""
-    major, dot, minor = version.partition(".")
-    return int(major), int(minor) if dot else 0
 
 
 def _download_supported_versions(kotlin_version: str, timeout: int) -> tuple[str, ...]:
@@ -236,6 +173,11 @@ def _download_compiler(kotlin_version: str, tmp_dir: Path, timeout: int) -> Path
     return kotlin_exe
 
 
+def _is_windows() -> bool:
+    """Return whether the current platform is Windows."""
+    return sys.platform == "win32"
+
+
 def _query_supported_versions(kotlin_exe: Path) -> tuple[str, ...]:
     """Return the JVM versions supported by ``kotlin_exe``, ascending.
 
@@ -268,9 +210,67 @@ def _query_supported_versions(kotlin_exe: Path) -> tuple[str, ...]:
     return tuple(versions)
 
 
-def _is_windows() -> bool:
-    """Return whether the current platform is Windows."""
-    return sys.platform == "win32"
+def _version_key(version: str) -> tuple[int, int]:
+    """Return the version as a two-part numeric tuple, e.g. ``"21"`` → ``(21, 0)``."""
+    major, dot, minor = version.partition(".")
+    return int(major), int(minor) if dot else 0
+
+
+def _save_mapping(kotlin_version: str, versions: tuple[str, ...]) -> None:
+    """Merge ``versions`` under ``kotlin_version`` into ``JAVA_VERSIONS_FILE``.
+
+    The cache directory is created if it does not exist.
+    """
+    mapping = _load_mapping()
+    mapping[kotlin_version] = list(versions)
+    JAVA_VERSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    JAVA_VERSIONS_FILE.write_text(json.dumps(mapping, indent=4, sort_keys=True) + "\n")
+
+
+def _detect_installed_java() -> str | None:
+    """Return the major version of the ``java`` executable on ``PATH``.
+
+    The version is normalized to compiler form (``21.0.11`` → ``"21"``,
+    ``1.8.0_412`` → ``"1.8"``).
+
+    Returns:
+        The normalized major version, or ``None`` if java is unavailable or
+        its version cannot be determined.
+    """
+    java_exe = shutil.which("java")
+    if java_exe is None:
+        return None
+    completed = subprocess.run(
+        [java_exe, "-version"], capture_output=True, text=True, check=False
+    )
+    if completed.returncode != 0:
+        return None
+    raw_output = f"{completed.stderr or ''}\n{completed.stdout or ''}"
+    match = JAVA_VERSION_TOKEN_RE.search(raw_output)
+    if match is None:
+        return None
+    parts = match.group(1).split(".")
+    major = parts[0]
+    if major == "1" and len(parts) > 1:
+        major = f"1.{parts[1]}"
+    if not JAVA_VERSION_RE.fullmatch(major):
+        return None
+    return major
+
+
+def _propose_version(installed: str | None, supported: tuple[str, ...]) -> str:
+    """Return ``installed`` if it is supported, else the newest supported one,
+    normalized to integer JVM toolchain form."""
+    if installed is not None and installed in supported:
+        return _to_toolchain_version(installed)
+    return _to_toolchain_version(max(supported, key=_version_key))
+
+
+def _to_toolchain_version(version: str) -> str:
+    """Return ``version`` as an integer JVM toolchain value (``"1.8"`` → ``"8"``)."""
+    if version.startswith("1."):
+        return version.removeprefix("1.")
+    return version
 
 
 def _print_result(java_info: JavaVersionInfo) -> None:
