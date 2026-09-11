@@ -47,6 +47,14 @@ def _log(message: str) -> None:
     print(message)
 
 
+def _relative_to_cwd(path: Path) -> Path:
+    """Return ``path`` relative to cwd, falling back to the absolute path."""
+    try:
+        return path.relative_to(Path.cwd())
+    except ValueError:
+        return path
+
+
 def _validate_project_inputs(name: str, package_name: str) -> None:
     """Validate project name and package name format."""
     if not name:
@@ -248,14 +256,6 @@ def _prompt_value(prompt: str, label: str) -> str:
         return input(prompt).strip()
     except EOFError as exc:
         raise ProjectCreationError(f"no {label} provided.") from exc
-
-
-def _relative_to_cwd(path: Path) -> Path:
-    """Return ``path`` relative to cwd, falling back to the absolute path."""
-    try:
-        return path.relative_to(Path.cwd())
-    except ValueError:
-        return path
 
 
 def _log_project_creation(name: str, package_name: str) -> None:
