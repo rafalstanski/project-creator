@@ -13,19 +13,24 @@ I wanted a practical project to experiment with local LLMs. This project is crea
 
 ## Prerequisites
 
-- `gradle` CLI (>= 8.2) on your `PATH` — `create_project.py` uses `gradle` to init Gradle related files.
-- `uv` — scripts are run with `uv run`.
+- `gradle` CLI (>= 8.2) on your `PATH` — the tool uses `gradle` to init Gradle related files.
+- `uv` — the tool is run with `uv run`.
 - Python 3.14 — pinned via `.python-version`.
 
 ## How to use?
 To create a project, run:
 ```shell
-uv run create_project.py
+./run.sh
 ```
 
-It will prompt you for the project name and package name. You can also provide them as parameters:
+It will prompt you for the project name and package name. You can also pass them directly as arguments:
 ```shell
-uv run create_project.py myapp com.sample.package
+./run.sh myapp com.sample.package
+```
+
+Alternatively, from the repository root:
+```shell
+uv run project-creator myapp com.sample.package
 ```
 
 This will create the project inside the `projects/` directory. 
