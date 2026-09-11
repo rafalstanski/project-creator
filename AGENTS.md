@@ -16,6 +16,7 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 
 - Google-style docstrings on all public functions
 - Type annotations everywhere
+- Function ordering follows the Stepdown Rule (clean code): imports, constants, public API first, then private helpers in call order (callers above callees, related helpers grouped together), and the CLI section (private CLI helpers + `main()` + `__main__` guard) at the bottom
 - Errors → stderr, success → stdout
 - Explicit exception handling (`HTTPError`, `URLError`, `ValueError`, `JSONDecodeError`)
 - Exception flow: business functions raise, they never catch-and-print. Only `main()` catches.

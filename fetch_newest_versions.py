@@ -20,29 +20,22 @@ class VersionFetchError(Exception):
     """Any error while fetching a version; ``str(exc)`` is user-facing."""
 
 
-def _fetch_newest_version(releases_url: str, timeout: int = DEFAULT_TIMEOUT) -> str:
-    """Fetch the newest release version of a tool from the GitHub API.
+def fetch_gradle_version(timeout: int = DEFAULT_TIMEOUT) -> str:
+    """Return the newest stable Gradle version, e.g. ``9.7.1``.
 
     Raises:
-        urllib.error.HTTPError: if the API returns a non-2xx status.
-        urllib.error.URLError: on network failure or timeout.
-        ValueError: if the response is missing/empty version.
+        VersionFetchError: if the version cannot be fetched or determined.
     """
-    request = urllib.request.Request(
-        releases_url,
-        headers={"User-Agent": USER_AGENT, "Accept": "application/vnd.github+json"},
-    )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        payload = json.load(response)
+    return _fetch_tool_version(GRADLE, timeout)
 
-    tag_name = payload.get("tag_name")
-    if not tag_name:
-        raise ValueError(f"Unexpected GitHub release payload: {payload!r}")
 
-    version = tag_name.lstrip("v")
-    if not version:
-        raise ValueError(f"Empty version derived from tag: {tag_name!r}")
-    return version
+def fetch_kotlin_version(timeout: int = DEFAULT_TIMEOUT) -> str:
+    """Return the newest stable Kotlin version, e.g. ``2.4.10``.
+
+    Raises:
+        VersionFetchError: if the version cannot be fetched or determined.
+    """
+    return _fetch_tool_version(KOTLIN, timeout)
 
 
 def _fetch_tool_version(tool_name: str, timeout: int = DEFAULT_TIMEOUT) -> str:
@@ -69,22 +62,29 @@ def _fetch_tool_version(tool_name: str, timeout: int = DEFAULT_TIMEOUT) -> str:
         ) from exc
 
 
-def fetch_gradle_version(timeout: int = DEFAULT_TIMEOUT) -> str:
-    """Return the newest stable Gradle version, e.g. ``9.7.1``.
+def _fetch_newest_version(releases_url: str, timeout: int = DEFAULT_TIMEOUT) -> str:
+    """Fetch the newest release version of a tool from the GitHub API.
 
     Raises:
-        VersionFetchError: if the version cannot be fetched or determined.
+        urllib.error.HTTPError: if the API returns a non-2xx status.
+        urllib.error.URLError: on network failure or timeout.
+        ValueError: if the response is missing/empty version.
     """
-    return _fetch_tool_version(GRADLE, timeout)
+    request = urllib.request.Request(
+        releases_url,
+        headers={"User-Agent": USER_AGENT, "Accept": "application/vnd.github+json"},
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        payload = json.load(response)
 
+    tag_name = payload.get("tag_name")
+    if not tag_name:
+        raise ValueError(f"Unexpected GitHub release payload: {payload!r}")
 
-def fetch_kotlin_version(timeout: int = DEFAULT_TIMEOUT) -> str:
-    """Return the newest stable Kotlin version, e.g. ``2.4.10``.
-
-    Raises:
-        VersionFetchError: if the version cannot be fetched or determined.
-    """
-    return _fetch_tool_version(KOTLIN, timeout)
+    version = tag_name.lstrip("v")
+    if not version:
+        raise ValueError(f"Empty version derived from tag: {tag_name!r}")
+    return version
 
 
 def _parse_args() -> argparse.Namespace:
