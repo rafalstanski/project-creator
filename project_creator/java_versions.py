@@ -14,9 +14,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
-JAVA_VERSIONS_FILE = (
-    Path(__file__).resolve().parents[1] / ".cache" / "java_versions.json"
-)
+from project_creator.paths import cache_dir
+
+JAVA_VERSIONS_FILE = cache_dir() / "java_versions.json"
 KOTLIN_COMPILER_RELEASES_URL = (
     "https://github.com/JetBrains/kotlin/releases/download/"
     "v{kotlin_version}/kotlin-compiler-{kotlin_version}.zip"
