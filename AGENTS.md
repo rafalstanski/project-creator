@@ -10,7 +10,7 @@ Input: project name + package name. Uses latest stable versions fetched from Git
 - Python 3.14 (pyenv, pinned via `.python-version`) — **stdlib recommended**; external dependencies only if needed
 - `uv` manages the environment (`.venv/`); run the tool with `uv run project-creator` or `./run.sh`
 - A local `gradle` CLI (>= 8.2) must be on `PATH`; the minimum is required by the `gradle init --no-incubating` command
-- No test framework, no CI; a build system (hatchling) exists only to provide the `project-creator` console script
+- No test framework, no CI; the build system (hatchling) provides the `project-creator` console script and packages `templates/` into the wheel
 
 ## Conventions
 
@@ -33,30 +33,43 @@ uv run -m project_creator.fetch_versions kotlin
 uv run -m project_creator.fetch_versions gradle
 uv run -m project_creator.java_versions 2.4.10
 ./run.sh myapp com.sample.package  # (package is optional, default `com.example`; also: uv run project-creator)
+uv tool install .                  # (global `project-creator` command; use --force to update)
 ```
+## Modes
+
+This program can be invoked in two modes:
+* **tool mode**: after using `uv tool install .`, it can be used as a CLI tool.
+* **dev mode**: directly from checkout directory by using `uv run project-creator`. 
 
 ## Directories
 
-- `project_creator/` — the Python package (`create`, `fetch_versions`, `java_versions` modules; `__main__` for `python -m project_creator`).
-- `templates/` — source template files copied into new projects.
-- `projects/` — generated project directories (created at runtime).
-- `.cache/` — runtime cache (`java_versions.json`); gitignored.
+- `project_creator/` — the Python package (`__main__` for `python -m project_creator`).
+- `templates/` — source template files copied into new projects; packaged into the wheel via hatchling `force-include`.
+- `projects/` — generated project directories in dev mode (created at runtime); in tool mode projects are created in the current working directory.
+- `.cache/` — runtime cache in dev mode (`java_versions.json`); gitignored. In tool mode the cache lives in `~/.cache/project-creator/`.
 
 ## Modules
 
 All modules live in the `project_creator/` package.
 
+### `project_creator/paths.py`
+
+Resolves the runtime locations (templates, projects, cache) and detects the execution mode:
+
+* Dev mode: projects are created in `projects/` and cached in `.cache/`.
+* Tool mode: projects are created in the current working directory and cached in `~/.cache/project-creator/`
+  (`%LOCALAPPDATA%/project-creator` on Windows).
+
 ### `project_creator/fetch_versions.py`
 
-Fetches the newest stable Gradle and Kotlin versions from their GitHub releases
-(gradle/gradle, JetBrains/kotlin).
+Fetches the newest stable Gradle and Kotlin versions from their GitHub releases (gradle/gradle, JetBrains/kotlin).
 
 ### `project_creator/java_versions.py`
 
 Looks up the JVM versions for a given Kotlin version (provided by the caller, never fetched).
-Result is cached in `.cache/java_versions.json`; a cache miss downloads the matching
-`kotlin-compiler-<ver>.zip` from the Kotlin GitHub release and parses the compiler's
-"Supported versions:" error message produced by an invalid `-jvm-target` flag.
+Result is cached in `java_versions.json` under the mode-dependent cache directory; a cache miss
+downloads the matching `kotlin-compiler-<ver>.zip` from the Kotlin GitHub release and parses
+the compiler's "Supported versions:" error message produced by an invalid `-jvm-target` flag.
 
 ### `project_creator/create.py`
 

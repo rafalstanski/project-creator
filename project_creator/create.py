@@ -10,10 +10,8 @@ from pathlib import Path
 
 from project_creator.fetch_versions import fetch_gradle_version, fetch_kotlin_version
 from project_creator.java_versions import get_java_versions
+from project_creator.paths import TEMPLATES_DIR, projects_dir
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-TEMPLATES_DIR = PROJECT_ROOT / "templates"
-PROJECTS_DIR = PROJECT_ROOT / "projects"
 TEMPLATE_FILES = ("build.gradle.kts", ".gitignore")
 DEFAULT_PACKAGE_NAME = "com.example"
 PACKAGE_NAME_PLACEHOLDER = "{{PACKAGE_NAME}}"
@@ -42,7 +40,8 @@ class ResolvedVersions:
 
 
 def create_project(name: str, package_name: str | None = None) -> Path:
-    """Create ``<PROJECTS_DIR>/<name>``: resolve versions, then build it.
+    """Create the project directory ``<projects_dir>/<name>``: resolve versions,
+    then build it.
 
     Resolves the project inputs (validating the name/package), fetches the
     newest Gradle/Kotlin/Java versions, and builds the project directory
@@ -69,7 +68,7 @@ def create_project(name: str, package_name: str | None = None) -> Path:
     _validate_project_inputs(name, package_name)
     _log_project_creation(name, package_name)
     versions = _resolve_versions()
-    return _build_project(name, package_name, versions, TEMPLATES_DIR, PROJECTS_DIR)
+    return _build_project(name, package_name, versions, TEMPLATES_DIR, projects_dir())
 
 
 def _default_package_name(package_name: str | None) -> str:
