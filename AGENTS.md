@@ -38,7 +38,7 @@ uv tool install .                  # (global `project-creator` command; use --fo
 ## Modes
 
 This program can be invoked in two modes:
-* **tool mode**: after using `uv tool install .` in can be used as CLI tool.
+* **tool mode**: after using `uv tool install .`, it can be used as a CLI tool.
 * **dev mode**: directly from checkout directory by using `uv run project-creator`. 
 
 ## Directories
