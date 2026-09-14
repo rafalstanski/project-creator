@@ -14,11 +14,14 @@ I wanted a practical project to experiment with local LLMs. This project is crea
 ## Prerequisites
 
 - `gradle` CLI (>= 8.2) on your `PATH` — the tool uses `gradle` to init Gradle related files.
-- `uv` — the tool is run with `uv run`.
+- `uv` — used to run the tool in dev mode and to install it in tool mode.
 - Python 3.14 — pinned via `.python-version`.
 
 ## How to use?
-To create a project, run:
+
+### Dev mode
+
+Run from the repository checkout. To create a project, run:
 ```shell
 ./run.sh
 ```
@@ -51,3 +54,25 @@ Populating project files from templates ...
 Project files populated.
 Project created: projects/myapp
 ```
+
+### Tool mode
+
+Install the tool as a global command, from the repository root:
+```shell
+uv tool install .
+```
+
+To update the tool after changes, re-run:
+```shell
+uv tool install . --force
+```
+
+`uv` installs executables into `~/.local/bin` — make sure it's on your `PATH` (`uv tool update-shell` adds it).
+
+Now you can create projects from any directory:
+```shell
+cd ~/work
+project-creator myapp com.sample.package
+```
+
+Unlike dev mode, the project is created in the current working directory.
